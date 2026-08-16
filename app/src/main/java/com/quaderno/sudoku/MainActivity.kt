@@ -185,6 +185,7 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
     var difficulty by mutableStateOf(difficulty)
     var given: BooleanArray = BooleanArray(81)
     var solution: IntArray = IntArray(81)
+    private var startingBoard: IntArray = IntArray(81)
     val board: SnapshotStateList<Int> = mutableStateListOf()
     val notes: List<SnapshotStateList<Int>> = List(81) { mutableStateListOf() }
     var selected by mutableStateOf(-1)
@@ -207,7 +208,23 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
         val puzzle = SudokuEngine.generatePuzzle(newDifficulty)
         given = BooleanArray(81) { puzzle.given[it] != 0 }
         solution = puzzle.solution
+        startingBoard = puzzle.given.copyOf()
         board.clear(); board.addAll(puzzle.given.toList())
+        notes.forEach { it.clear() }
+        selected = -1
+        notesMode = false
+        mistakes = 0
+        hintsUsed = 0
+        autoCompleted = false
+        seconds = 0
+        won = false
+        paused = false
+        generation++
+        history.clear()
+    }
+
+    fun retry() {
+        board.clear(); board.addAll(startingBoard.toList())
         notes.forEach { it.clear() }
         selected = -1
         notesMode = false
@@ -226,15 +243,35 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
         if (history.size > 200) history.removeFirst()
     }
 
-    fun select(pos: Int) { if (!won) selected = pos }
+    fun select(pos: Int) { if (!won && !failed()) selected = pos }
+
+    private fun boxPositions(pos: Int): IntRange {
+        val startRow = (pos / 9 / 3) * 3
+        val startCol = (pos % 9 / 3) * 3
+        val first = startRow * 9 + startCol
+        return first..(first + 20)
+    }
+
+    private fun isInSameBox(origin: Int, candidate: Int): Boolean =
+        origin / 9 / 3 == candidate / 9 / 3 && origin % 9 / 3 == candidate % 9 / 3
+
+    private fun removeNoteFromBox(pos: Int, n: Int) {
+        boxPositions(pos).forEach { candidate ->
+            if (candidate in 0 until 81 && isInSameBox(pos, candidate)) notes[candidate].remove(n)
+        }
+    }
+
+    private fun numberAlreadyInBox(pos: Int, n: Int): Boolean =
+        (0 until 81).any { it != pos && isInSameBox(pos, it) && board[it] == n }
 
     fun input(n: Int) {
-        if (won) return
+        if (won || failed()) return
         val pos = selected
         if (pos == -1 || given[pos]) return
 
         if (notesMode) {
             if (board[pos] != 0) return
+            if (numberAlreadyInBox(pos, n)) return
             pushHistory(pos)
             if (notes[pos].contains(n)) notes[pos].remove(n) else notes[pos].add(n)
             return
@@ -246,13 +283,14 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
         } else {
             board[pos] = n
             notes[pos].clear()
+            removeNoteFromBox(pos, n)
             if (solution[pos] != n) mistakes++
         }
         checkWin()
     }
 
     fun erase() {
-        if (won) return
+        if (won || failed()) return
         val pos = selected
         if (pos == -1 || given[pos]) return
         pushHistory(pos)
@@ -261,17 +299,17 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
     }
 
     fun undo() {
-        if (history.isEmpty()) return
+        if (history.isEmpty() || failed()) return
         val last = history.removeLast()
         board[last.pos] = last.value
         notes[last.pos].clear(); notes[last.pos].addAll(last.notes)
         won = false
     }
 
-    fun toggleNotes() { notesMode = !notesMode }
+    fun toggleNotes() { if (!failed()) notesMode = !notesMode }
 
     fun hint() {
-        if (won) return
+        if (won || failed()) return
         hintsUsed++
         var pos = selected
         if (pos == -1 || given[pos] || board[pos] == solution[pos]) {
@@ -282,18 +320,20 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
         pushHistory(pos)
         board[pos] = solution[pos]
         notes[pos].clear()
+        removeNoteFromBox(pos, solution[pos])
         selected = pos
         checkWin()
     }
 
     fun completeLastCell() {
-        if (won || remaining() != 1) return
+        if (won || failed() || remaining() != 1) return
         autoCompleted = true
         val pos = board.indexOfFirst { it == 0 }
         if (pos >= 0) {
             pushHistory(pos)
             board[pos] = solution[pos]
             notes[pos].clear()
+            removeNoteFromBox(pos, solution[pos])
             selected = pos
             checkWin()
         }
@@ -305,6 +345,7 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
 
     fun remaining(): Int = board.count { it == 0 }
     fun placedCount(n: Int): Int = board.count { it == n }
+    fun failed(): Boolean = mistakes >= 3 && !won
 
     fun score(final: Boolean = won): Int {
         val base = intArrayOf(1000, 2000, 3500, 5000, 7500, 10000)[difficulty.ordinal]
@@ -598,9 +639,13 @@ private fun SimplePageHeader(title: String, onBack: () -> Unit) {
 private fun StatisticsScreen(stats: StatsStore, statsVersion: Int, onBack: () -> Unit) {
     statsVersion
     val levels = SudokuEngine.Difficulty.values()
+    var selectedLevel by remember { mutableStateOf(SudokuEngine.Difficulty.FACILE) }
+    var showLevelPicker by remember { mutableStateOf(false) }
     val all = levels.map { stats.stats(it) }
     val totalCompleted = all.sumOf { it.completed }
     val totalSeconds = all.sumOf { it.totalSeconds }
+    val selected = stats.stats(selectedLevel)
+    val average = if (selected.completed == 0) 0 else (selected.totalSeconds / selected.completed).toInt()
 
     Column(Modifier.fillMaxSize().background(Color(0xFFF0F3F9))) {
         SimplePageHeader("Statistiche", onBack)
@@ -616,29 +661,99 @@ private fun StatisticsScreen(stats: StatsStore, statsVersion: Int, onBack: () ->
                 SummaryCard("Serie attuale", stats.currentStreak().toString(), Modifier.weight(1f))
                 SummaryCard("Serie migliore", stats.bestStreak().toString(), Modifier.weight(1f))
             }
-            Spacer(Modifier.height(4.dp))
-            Text("Partite per livello", color = Color(0xFF25344B), fontSize = 21.sp, fontWeight = FontWeight.Bold)
-            levels.forEach { level ->
-                val s = stats.stats(level)
-                val average = if (s.completed == 0) 0 else (s.totalSeconds / s.completed).toInt()
-                Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).padding(17.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            level.label.lowercase().replaceFirstChar { it.uppercase() },
-                            color = if (stats.isUnlocked(level)) AppBlue else AppText,
-                            fontSize = 19.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(Modifier.weight(1f))
-                        if (!stats.isUnlocked(level)) Text("🔒", fontSize = 18.sp)
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    Text("Iniziate ${s.started}  •  Completate ${s.completed}  •  Abbandonate ${s.abandoned}", color = AppText, fontSize = 13.sp)
-                    Text("Tempo migliore ${formatTime(s.bestSeconds)}  •  Tempo medio ${formatTime(average)}", color = AppText, fontSize = 13.sp)
-                    Text("Miglior punteggio ${s.bestScore}  •  Senza errori ${s.flawless}", color = AppText, fontSize = 13.sp)
+            Spacer(Modifier.height(6.dp))
+            Text("Dettaglio per livello", color = Color(0xFF25344B), fontSize = 21.sp, fontWeight = FontWeight.Bold)
+            Surface(
+                modifier = Modifier.fillMaxWidth().clickable { showLevelPicker = true },
+                shape = RoundedCornerShape(18.dp),
+                color = AppBlue
+            ) {
+                Row(Modifier.padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        selectedLevel.label.lowercase().replaceFirstChar { it.uppercase() },
+                        color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.weight(1f))
+                    if (!stats.isUnlocked(selectedLevel)) Text("🔒  ", fontSize = 17.sp)
+                    Text("⌄", color = Color.White, fontSize = 26.sp)
+                }
+            }
+
+            Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(22.dp)).padding(18.dp)) {
+                if (!stats.isUnlocked(selectedLevel)) {
+                    Text("Livello ancora bloccato", color = AppText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(5.dp))
+                    LinearProgressIndicator(
+                        progress = stats.unlockProgress(selectedLevel) / 5f,
+                        modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(8.dp)),
+                        color = AppBlue,
+                        trackColor = AppBlueSoft
+                    )
+                    Text("${stats.unlockProgress(selectedLevel)}/5 vittorie richieste", color = AppText, fontSize = 12.sp)
+                    Spacer(Modifier.height(14.dp))
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    LevelStatCard("Iniziate", selected.started.toString(), Modifier.weight(1f))
+                    LevelStatCard("Completate", selected.completed.toString(), Modifier.weight(1f))
+                    LevelStatCard("Abbandonate", selected.abandoned.toString(), Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    LevelStatCard("Tempo migliore", formatTime(selected.bestSeconds), Modifier.weight(1f))
+                    LevelStatCard("Tempo medio", formatTime(average), Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    LevelStatCard("Miglior punteggio", selected.bestScore.toString(), Modifier.weight(1f))
+                    LevelStatCard("Senza errori", selected.flawless.toString(), Modifier.weight(1f))
                 }
             }
         }
+    }
+
+    if (showLevelPicker) {
+        AlertDialog(
+            onDismissRequest = { showLevelPicker = false },
+            shape = RoundedCornerShape(26.dp),
+            containerColor = Color.White,
+            title = { Text("Scegli il livello", color = Color(0xFF25344B), fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    levels.forEach { level ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable {
+                                selectedLevel = level
+                                showLevelPicker = false
+                            }.padding(vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                level.label.lowercase().replaceFirstChar { it.uppercase() },
+                                color = if (level == selectedLevel) AppBlue else Color(0xFF25344B),
+                                fontSize = 18.sp,
+                                fontWeight = if (level == selectedLevel) FontWeight.Bold else FontWeight.Normal
+                            )
+                            Spacer(Modifier.weight(1f))
+                            if (!stats.isUnlocked(level)) Text("🔒")
+                            if (level == selectedLevel) Text("  ✓", color = AppBlue, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { showLevelPicker = false }) { Text("Annulla") } }
+        )
+    }
+}
+
+@Composable
+private fun LevelStatCard(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier.background(AppBlueSoft, RoundedCornerShape(14.dp)).padding(horizontal = 8.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(value, color = AppBlue, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Text(label, color = AppText, fontSize = 11.sp, textAlign = TextAlign.Center, lineHeight = 13.sp)
     }
 }
 
@@ -738,7 +853,7 @@ fun SudokuScreen(
 
     // timer: riparte a ogni nuova partita, si ferma automaticamente a vittoria
     LaunchedEffect(game.generation, game.won) {
-        while (isActive && !game.won) {
+        while (isActive && !game.won && !game.failed()) {
             delay(1000)
             if (!game.paused) game.seconds++
         }
@@ -764,7 +879,7 @@ fun SudokuScreen(
             ModernActions(game)
             Spacer(Modifier.height(16.dp))
             NumberPad(game)
-            if (game.remaining() == 1 && !game.won) {
+            if (game.remaining() == 1 && !game.won && !game.failed()) {
                 Spacer(Modifier.height(12.dp))
                 Button(
                     onClick = { game.completeLastCell() },
@@ -779,6 +894,7 @@ fun SudokuScreen(
 
         if (game.paused) PauseOverlay(game)
         if (game.won) WinOverlay(game, onMenu = onBack, onChangeLevel = onChangeLevel)
+        if (game.failed()) FailureOverlay(game)
     }
 }
 
@@ -1142,6 +1258,28 @@ private fun PauseOverlay(game: GameState) {
             Text("Partita in pausa", color = Color(0xFF263A58), fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(10.dp))
             Text("Tocca per continuare", color = AppText, fontSize = 16.sp)
+        }
+    }
+}
+
+@Composable
+private fun FailureOverlay(game: GameState) {
+    Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.96f)), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("×", color = Color(0xFFD14A4A), fontSize = 68.sp, fontWeight = FontWeight.Bold)
+            Text("3 errori", color = Color(0xFF263A58), fontSize = 27.sp, fontWeight = FontWeight.Bold)
+            Text("La partita è terminata", color = AppText, fontSize = 17.sp)
+            Spacer(Modifier.height(26.dp))
+            Button(
+                onClick = { game.retry() },
+                modifier = Modifier.width(230.dp).height(50.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
+            ) { Text("Riprova", fontSize = 17.sp, fontWeight = FontWeight.Bold) }
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = { game.reset() },
+                modifier = Modifier.width(230.dp).height(50.dp)
+            ) { Text("Cambia schema", color = AppBlue, fontSize = 17.sp) }
         }
     }
 }
