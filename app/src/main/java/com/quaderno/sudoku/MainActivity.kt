@@ -620,6 +620,7 @@ private fun SudokuAppRoot() {
     var showDailyResumeDialog by remember { mutableStateOf(false) }
     var pendingDailyDate by remember { mutableStateOf<LocalDate?>(null) }
     var dailyGameDate by remember { mutableStateOf<LocalDate?>(null) }
+    var dailySelectFirstAvailable by remember { mutableStateOf(false) }
     val game = remember { GameState(SudokuEngine.Difficulty.MEDIO, settings) }
 
     LaunchedEffect(game.won, game.generation) {
@@ -628,6 +629,7 @@ private fun SudokuAppRoot() {
             statsVersion++
             if (dailyGameDate != null) {
                 dailyGameDate = null
+                dailySelectFirstAvailable = true
                 screen = AppScreen.DAILY
             }
         }
@@ -643,7 +645,10 @@ private fun SudokuAppRoot() {
     when (screen) {
         AppScreen.HOME -> HomeScreen(
             onPlay = { showLevels = true },
-            onDaily = { screen = AppScreen.DAILY },
+            onDaily = {
+                dailySelectFirstAvailable = false
+                screen = AppScreen.DAILY
+            },
             onSettings = { screen = AppScreen.SETTINGS },
             onTutorial = { screen = AppScreen.TUTORIAL },
             onStatistics = { screen = AppScreen.STATISTICS },
@@ -687,8 +692,10 @@ private fun SudokuAppRoot() {
         AppScreen.DAILY -> DailyChallengeScreen(
             stats = stats,
             statsVersion = statsVersion,
+            selectFirstAvailable = dailySelectFirstAvailable,
             onBack = { screen = AppScreen.HOME },
             onPlay = { code ->
+                dailySelectFirstAvailable = false
                 val selectedDailyDate = LocalDate.now().let { today ->
                     (1..today.dayOfMonth).map { YearMonth.from(today).atDay(it) }
                         .firstOrNull { ChallengeCodes.daily(it) == code }
@@ -823,6 +830,7 @@ private fun Modifier.homeDashedBottom(): Modifier = drawBehind {
 private fun DailyChallengeScreen(
     stats: StatsStore,
     statsVersion: Int,
+    selectFirstAvailable: Boolean,
     onBack: () -> Unit,
     onPlay: (String) -> Unit
 ) {
@@ -838,11 +846,15 @@ private fun DailyChallengeScreen(
         stats.challengeResult(ChallengeCodes.daily(date)) != null ||
             stats.challengeResult(ChallengeCodes.legacyDaily(date)) != null
     }.toSet()
-    var selectedDate by remember(month, statsVersion) {
+    var selectedDate by remember(month, statsVersion, selectFirstAvailable) {
         mutableStateOf(
-            (1..today.dayOfMonth)
-                .firstOrNull { it !in completedDays }
-                ?.let(month::atDay)
+            if (!selectFirstAvailable && today.dayOfMonth !in completedDays) {
+                today
+            } else {
+                (1..today.dayOfMonth)
+                    .firstOrNull { it !in completedDays }
+                    ?.let(month::atDay)
+            }
         )
     }
     val firstOffset = month.atDay(1).dayOfWeek.value - 1
