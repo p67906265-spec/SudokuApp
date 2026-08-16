@@ -25,8 +25,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -35,30 +33,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlin.random.Random
 
-// ---------------------------------------------------------------------------
-// Palette e tipografia "quaderno a matita"
-// ---------------------------------------------------------------------------
-private val Paper = Color(0xFFEDE7D9)
-private val Paper2 = Color(0xFFE4DCC8)
-private val Ink = Color(0xFF23241F)
-private val InkSoft = Color(0xFF5B5C52)
-private val LineStrong = Color(0xFF23241F)
-private val Teal = Color(0xFF2F6F63)
-private val TealSoft = Color(0xFFD8E7E1)
-private val Rust = Color(0xFFA64B34)
-private val RustSoft = Color(0xFFF1DCD3)
-private val GoldSoft = Color(0xFFF0E3C4)
-private val Gold = Color(0xFFB7862C)
-
 // Palette moderna della schermata di riferimento
 private val AppBlue = Color(0xFF2F63AD)
 private val AppBlueSoft = Color(0xFFE3EDF8)
 private val GridLine = Color(0xFF3E424B)
 private val CellLine = Color(0xFFC6CDD6)
 private val AppText = Color(0xFF727887)
-
-private val Display = FontFamily.Serif
-private val Mono = FontFamily.Monospace
 
 // ---------------------------------------------------------------------------
 // Motore Sudoku: generazione griglia piena, rimozione celle con verifica
@@ -211,7 +191,7 @@ private object ChallengeCodes {
 // ---------------------------------------------------------------------------
 // Stato di partita
 // ---------------------------------------------------------------------------
-class GameState(difficulty: SudokuEngine.Difficulty) {
+class GameState(difficulty: SudokuEngine.Difficulty, private val settings: SettingsStore) {
     var difficulty by mutableStateOf(difficulty)
     var given: BooleanArray = BooleanArray(81)
     var solution: IntArray = IntArray(81)
@@ -228,6 +208,8 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
     var won by mutableStateOf(false)
     var paused by mutableStateOf(false)
     var generation by mutableStateOf(0)
+    val celebrationCells: SnapshotStateList<Int> = mutableStateListOf()
+    var celebrationId by mutableStateOf(0)
     private val history = ArrayDeque<HistoryEntry>()
 
     private data class HistoryEntry(val pos: Int, val value: Int, val notes: List<Int>)
@@ -253,6 +235,7 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
         seconds = 0
         won = false
         paused = false
+        celebrationCells.clear()
         generation++
         history.clear()
     }
@@ -268,6 +251,7 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
         seconds = 0
         won = false
         paused = false
+        celebrationCells.clear()
         generation++
         history.clear()
     }
@@ -311,6 +295,11 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
             return
         }
 
+        val row = pos / 9
+        val box = (row / 3) * 3 + (pos % 9 / 3)
+        val rowWasComplete = isRowComplete(row)
+        val boxWasComplete = isBoxComplete(box)
+
         pushHistory(pos)
         if (board[pos] == n) {
             board[pos] = 0
@@ -321,9 +310,45 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
             if (solution[pos] != n) mistakes++
         }
         checkWin()
+        showCompletedArea(row, box, rowWasComplete, boxWasComplete)
         if (!won && board[pos] == n && placedCount(n) >= 9) {
             selectNextIncompleteNumber(n)
         }
+    }
+
+    private fun isRowComplete(row: Int): Boolean =
+        (0..8).all { col -> board[row * 9 + col] == solution[row * 9 + col] }
+
+    private fun isBoxComplete(box: Int): Boolean {
+        val firstRow = (box / 3) * 3
+        val firstCol = (box % 3) * 3
+        return (0..2).all { dr ->
+            (0..2).all { dc ->
+                val cell = (firstRow + dr) * 9 + firstCol + dc
+                board[cell] == solution[cell]
+            }
+        }
+    }
+
+    private fun showCompletedArea(row: Int, box: Int, rowWasComplete: Boolean, boxWasComplete: Boolean) {
+        val cells = linkedSetOf<Int>()
+        if (!rowWasComplete && isRowComplete(row)) {
+            (0..8).forEach { col -> cells += row * 9 + col }
+        }
+        if (!boxWasComplete && isBoxComplete(box)) {
+            val firstRow = (box / 3) * 3
+            val firstCol = (box % 3) * 3
+            (0..2).forEach { dr -> (0..2).forEach { dc -> cells += (firstRow + dr) * 9 + firstCol + dc } }
+        }
+        if (cells.isNotEmpty() && settings.animations) {
+            celebrationCells.clear()
+            celebrationCells.addAll(cells)
+            celebrationId++
+        }
+    }
+
+    fun clearCelebration(id: Int) {
+        if (celebrationId == id) celebrationCells.clear()
     }
 
     private fun selectNextIncompleteNumber(completedNumber: Int) {
@@ -359,12 +384,9 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
     fun hint() {
         if (won || failed()) return
         hintsUsed++
-        var pos = selected
-        if (pos == -1 || given[pos] || board[pos] == solution[pos]) {
-            val candidates = (0 until 81).filter { !given[it] && board[it] != solution[it] }
-            if (candidates.isEmpty()) return
-            pos = candidates.random()
-        }
+        val candidates = (0 until 81).filter { !given[it] && board[it] != solution[it] }
+        if (candidates.isEmpty()) return
+        val pos = if (settings.smartHints && selected in candidates) selected else candidates.random()
         pushHistory(pos)
         board[pos] = solution[pos]
         notes[pos].clear()
@@ -393,7 +415,8 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
 
     fun remaining(): Int = board.count { it == 0 }
     fun placedCount(n: Int): Int = board.count { it == n }
-    fun failed(): Boolean = mistakes >= 3 && !won
+    fun failed(): Boolean = settings.errorLimit && mistakes >= 3 && !won
+    fun errorLabel(): String = if (settings.errorLimit) "$mistakes/3" else "$mistakes"
 
     fun score(final: Boolean = won): Int {
         val base = intArrayOf(1000, 2000, 3500, 5000, 7500, 10000)[difficulty.ordinal]
@@ -426,6 +449,32 @@ private data class ChallengeResult(
     val attempts: Int,
     val completedAt: Long
 )
+
+class SettingsStore(context: Context) {
+    private val prefs = context.getSharedPreferences("sudoku_settings", Context.MODE_PRIVATE)
+
+    var animations by mutableStateOf(prefs.getBoolean("animations", true))
+        private set
+    var smartHints by mutableStateOf(prefs.getBoolean("smart_hints", true))
+        private set
+    var errorLimit by mutableStateOf(prefs.getBoolean("error_limit", true))
+        private set
+
+    fun setAnimations(value: Boolean) {
+        animations = value
+        prefs.edit().putBoolean("animations", value).apply()
+    }
+
+    fun setSmartHints(value: Boolean) {
+        smartHints = value
+        prefs.edit().putBoolean("smart_hints", value).apply()
+    }
+
+    fun setErrorLimit(value: Boolean) {
+        errorLimit = value
+        prefs.edit().putBoolean("error_limit", value).apply()
+    }
+}
 
 private class StatsStore(context: Context) {
     private val prefs = context.getSharedPreferences("sudoku_stats", Context.MODE_PRIVATE)
@@ -539,10 +588,11 @@ private enum class AppScreen { HOME, GAME, SETTINGS, TUTORIAL, STATISTICS, CHALL
 private fun SudokuAppRoot() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val stats = remember { StatsStore(context) }
+    val settings = remember { SettingsStore(context) }
     var statsVersion by remember { mutableStateOf(0) }
     var screen by remember { mutableStateOf(AppScreen.HOME) }
     var showLevels by remember { mutableStateOf(false) }
-    val game = remember { GameState(SudokuEngine.Difficulty.MEDIO) }
+    val game = remember { GameState(SudokuEngine.Difficulty.MEDIO, settings) }
 
     LaunchedEffect(game.won, game.generation) {
         if (game.won) {
@@ -581,7 +631,7 @@ private fun SudokuAppRoot() {
             },
             onChangeLevel = { showLevels = true }
         )
-        AppScreen.SETTINGS -> SettingsScreen { screen = AppScreen.HOME }
+        AppScreen.SETTINGS -> SettingsScreen(settings) { screen = AppScreen.HOME }
         AppScreen.TUTORIAL -> TutorialScreen { screen = AppScreen.HOME }
         AppScreen.STATISTICS -> StatisticsScreen(stats, statsVersion) { screen = AppScreen.HOME }
         AppScreen.CHALLENGES -> ChallengeScreen(
@@ -1092,19 +1142,14 @@ private fun formatDuration(seconds: Long): String {
 }
 
 @Composable
-private fun SettingsScreen(onBack: () -> Unit) {
-    var sounds by remember { mutableStateOf(true) }
-    var animations by remember { mutableStateOf(true) }
-    var errorLimit by remember { mutableStateOf(true) }
-    var smartHints by remember { mutableStateOf(true) }
+private fun SettingsScreen(settings: SettingsStore, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().background(Color(0xFFF0F3F9))) {
         SimplePageHeader("Impostazioni", onBack)
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SettingToggle("Suoni", sounds) { sounds = it }
-            SettingToggle("Animazione dei numeri", animations) { animations = it }
-            SettingToggle("Suggerimenti intelligenti", smartHints) { smartHints = it }
-            SettingToggle("Limite di 3 errori", errorLimit) { errorLimit = it }
-            Text("Le preferenze verranno applicate alle nuove partite.", color = AppText, fontSize = 14.sp, modifier = Modifier.padding(10.dp))
+            SettingToggle("Animazioni", settings.animations, settings::setAnimations)
+            SettingToggle("Suggerimenti intelligenti", settings.smartHints, settings::setSmartHints)
+            SettingToggle("Limite di 3 errori", settings.errorLimit, settings::setErrorLimit)
+            Text("Le preferenze vengono salvate e applicate subito.", color = AppText, fontSize = 14.sp, modifier = Modifier.padding(10.dp))
         }
     }
 }
@@ -1233,6 +1278,14 @@ fun SudokuScreen(
         }
     }
 
+    LaunchedEffect(game.celebrationId) {
+        val id = game.celebrationId
+        if (id > 0) {
+            delay(950)
+            game.clearCelebration(id)
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1260,17 +1313,6 @@ fun SudokuScreen(
             ModernActions(game)
             Spacer(Modifier.height(16.dp))
             NumberPad(game)
-            if (game.remaining() == 1 && !game.won && !game.failed()) {
-                Spacer(Modifier.height(12.dp))
-                Button(
-                    onClick = { game.completeLastCell() },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(26.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
-                ) {
-                    Text("Completa gioco", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                }
-            }
         }
 
         if (game.paused) PauseOverlay(game)
@@ -1305,7 +1347,7 @@ private fun ModernStats(game: GameState) {
         ModernStat("Oggi", "★ 0")
         ModernStat("Difficoltà", game.difficulty.label.lowercase().replaceFirstChar { it.uppercase() })
         ModernStat("Punteggio", "${game.score()}")
-        ModernStat("Errori", "${game.mistakes}/3")
+        ModernStat("Errori", game.errorLabel())
     }
 }
 
@@ -1317,83 +1359,6 @@ private fun ModernStat(label: String, value: String, clickable: Boolean = false,
     ) {
         Text(label, color = AppText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         Text(value, color = AppText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-private fun Header() {
-    Column {
-        Text(
-            "QUADERNO N.7",
-            fontFamily = Mono,
-            fontSize = 11.sp,
-            letterSpacing = 1.5.sp,
-            color = InkSoft
-        )
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text("Sudoku ", fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = 26.sp, color = Ink)
-            Text("a matita", fontFamily = Display, fontWeight = FontWeight.Medium, fontStyle = FontStyle.Italic, fontSize = 26.sp, color = Rust)
-        }
-        Spacer(Modifier.height(8.dp))
-        Box(Modifier.fillMaxWidth().height(2.dp).background(LineStrong))
-    }
-}
-
-@Composable
-private fun DifficultyBar(game: GameState) {
-    val levels = SudokuEngine.Difficulty.values()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.5.dp, LineStrong, RoundedCornerShape(3.dp))
-            .clip(RoundedCornerShape(3.dp))
-    ) {
-        levels.forEachIndexed { i, d ->
-            val active = game.difficulty == d
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .background(if (active) Ink else Color.Transparent)
-                    .clickable { game.reset(d) }
-                    .padding(vertical = 9.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    d.label,
-                    fontFamily = Mono,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 11.sp,
-                    color = if (active) Paper else Ink
-                )
-            }
-            if (i < levels.size - 1) {
-                Box(
-                    Modifier
-                        .width(1.5.dp)
-                        .fillMaxHeight()
-                        .background(LineStrong)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun StatRow(game: GameState) {
-    val m = (game.seconds / 60).toString().padStart(2, '0')
-    val s = (game.seconds % 60).toString().padStart(2, '0')
-    Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-        StatItem("Tempo", "$m:$s")
-        StatItem("Errori", "${game.mistakes}")
-        StatItem("Vuote", "${game.remaining()}")
-    }
-}
-
-@Composable
-private fun StatItem(label: String, value: String) {
-    Row {
-        Text("$label ", fontFamily = Mono, fontSize = 12.sp, color = InkSoft)
-        Text(value, fontFamily = Mono, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Ink)
     }
 }
 
@@ -1433,9 +1398,11 @@ private fun SudokuCell(game: GameState, pos: Int) {
     val isPeer = selPos != -1 && pos != selPos && (r == selRow || c == selCol || b == selBox)
     val isSameNum = selVal != 0 && value == selVal && pos != selPos
     val isError = value != 0 && value != game.solution[pos]
+    val isCelebrating = pos in game.celebrationCells
 
     val bg = when {
         isError && isSelected -> Color(0xFFFFB9B9)
+        isCelebrating -> Color(0xFFFFD86B)
         isSelected -> Color(0xFF79B8F3)
         isError -> Color(0xFFFFE1E1)
         isSameNum -> Color(0xFFD8CCF4)
@@ -1526,36 +1493,6 @@ private fun Modifier.thickEdge(right: Boolean, bottom: Boolean): Modifier {
 }
 
 @Composable
-private fun WinBanner(game: GameState) {
-    val m = (game.seconds / 60).toString().padStart(2, '0')
-    val s = (game.seconds % 60).toString().padStart(2, '0')
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(2.dp, Teal, RoundedCornerShape(3.dp))
-            .background(TealSoft, RoundedCornerShape(3.dp))
-            .padding(14.dp)
-    ) {
-        Text("Griglia completata.", fontFamily = Display, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Teal)
-        Text(
-            "Livello ${game.difficulty.label.lowercase()} · ${game.mistakes} errori · $m:$s",
-            fontFamily = Mono, fontSize = 11.sp, color = InkSoft
-        )
-    }
-}
-
-@Composable
-private fun ActionRow(game: GameState) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        ActionButton("↻", "Nuova", Modifier.weight(1f)) { game.reset() }
-        ActionButton("←", "Annulla", Modifier.weight(1f)) { game.undo() }
-        ActionButton("×", "Cancella", Modifier.weight(1f)) { game.erase() }
-        ActionButton("✎", "Note", Modifier.weight(1f), active = game.notesMode) { game.toggleNotes() }
-        ActionButton("☉", "Aiuto", Modifier.weight(1f)) { game.hint() }
-    }
-}
-
-@Composable
 private fun ModernActions(game: GameState) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
         ModernAction("↶", "Annulla") { game.undo() }
@@ -1587,22 +1524,6 @@ private fun ModernAction(icon: String, label: String, active: Boolean = false, o
     ) {
         Text(icon, color = if (active) AppBlue else AppText, fontSize = 31.sp)
         Text(label, color = AppText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-private fun ActionButton(icon: String, label: String, modifier: Modifier = Modifier, active: Boolean = false, onClick: () -> Unit) {
-    Column(
-        modifier = modifier
-            .border(1.5.dp, if (active) Gold else LineStrong, RoundedCornerShape(3.dp))
-            .background(if (active) GoldSoft else Paper2, RoundedCornerShape(3.dp))
-            .clickable { onClick() }
-            .padding(vertical = 9.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(icon, fontSize = 15.sp, color = Ink)
-        Spacer(Modifier.height(2.dp))
-        Text(label, fontFamily = Mono, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, color = Ink)
     }
 }
 
