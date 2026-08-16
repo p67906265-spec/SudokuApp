@@ -460,17 +460,17 @@ class SettingsStore(context: Context) {
     var errorLimit by mutableStateOf(prefs.getBoolean("error_limit", true))
         private set
 
-    fun setAnimations(value: Boolean) {
+    fun updateAnimations(value: Boolean) {
         animations = value
         prefs.edit().putBoolean("animations", value).apply()
     }
 
-    fun setSmartHints(value: Boolean) {
+    fun updateSmartHints(value: Boolean) {
         smartHints = value
         prefs.edit().putBoolean("smart_hints", value).apply()
     }
 
-    fun setErrorLimit(value: Boolean) {
+    fun updateErrorLimit(value: Boolean) {
         errorLimit = value
         prefs.edit().putBoolean("error_limit", value).apply()
     }
@@ -1146,9 +1146,9 @@ private fun SettingsScreen(settings: SettingsStore, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().background(Color(0xFFF0F3F9))) {
         SimplePageHeader("Impostazioni", onBack)
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SettingToggle("Animazioni", settings.animations, settings::setAnimations)
-            SettingToggle("Suggerimenti intelligenti", settings.smartHints, settings::setSmartHints)
-            SettingToggle("Limite di 3 errori", settings.errorLimit, settings::setErrorLimit)
+            SettingToggle("Animazioni", settings.animations, settings::updateAnimations)
+            SettingToggle("Suggerimenti intelligenti", settings.smartHints, settings::updateSmartHints)
+            SettingToggle("Limite di 3 errori", settings.errorLimit, settings::updateErrorLimit)
             Text("Le preferenze vengono salvate e applicate subito.", color = AppText, fontSize = 14.sp, modifier = Modifier.padding(10.dp))
         }
     }
