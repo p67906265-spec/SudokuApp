@@ -2,6 +2,7 @@ package com.quaderno.sudoku
 
 import android.os.Bundle
 import android.content.Context
+import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -736,9 +737,13 @@ private fun ChallengeScreen(
     onPlayCode: (String) -> Unit
 ) {
     statsVersion
+    val context = androidx.compose.ui.platform.LocalContext.current
     var code by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
     var previousResult by remember { mutableStateOf<ChallengeResult?>(null) }
+    var generatedCode by remember { mutableStateOf("") }
+    var challengeLevel by remember { mutableStateOf(SudokuEngine.Difficulty.MEDIO) }
+    var showChallengeLevelPicker by remember { mutableStateOf(false) }
     val history = stats.challengeHistory()
 
     fun requestPlay(rawCode: String) {
@@ -758,6 +763,66 @@ private fun ChallengeScreen(
             Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(22.dp)).padding(20.dp)) {
+                Text("Crea una sfida", color = Color(0xFF25344B), fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                Text("Genera un codice e invialo a chi vuoi sfidare.", color = AppText, fontSize = 14.sp)
+                Spacer(Modifier.height(14.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clickable { showChallengeLevelPicker = true },
+                    shape = RoundedCornerShape(15.dp),
+                    color = AppBlueSoft
+                ) {
+                    Row(Modifier.padding(horizontal = 17.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Livello", color = AppText, fontSize = 14.sp)
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            challengeLevel.label.lowercase().replaceFirstChar { it.uppercase() },
+                            color = AppBlue, fontSize = 17.sp, fontWeight = FontWeight.Bold
+                        )
+                        Text("  ⌄", color = AppBlue, fontSize = 20.sp)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = { generatedCode = ChallengeCodes.create(challengeLevel) },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
+                ) { Text("GENERA CODICE", fontWeight = FontWeight.Bold) }
+
+                if (generatedCode.isNotEmpty()) {
+                    Spacer(Modifier.height(16.dp))
+                    Box(
+                        Modifier.fillMaxWidth().background(Color(0xFFF2F6FC), RoundedCornerShape(17.dp)).padding(17.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("CODICE DELLA SFIDA", color = AppText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(generatedCode, color = AppBlue, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(
+                            onClick = { onPlayCode(generatedCode) },
+                            modifier = Modifier.weight(1f).height(48.dp)
+                        ) { Text("Gioca", color = AppBlue, fontWeight = FontWeight.Bold) }
+                        Button(
+                            onClick = {
+                                val levelName = challengeLevel.label.lowercase().replaceFirstChar { it.uppercase() }
+                                val message = "Ti sfido a Sudoku Free! Livello $levelName. Inserisci il codice $generatedCode in Sfide con codice e giochiamo lo stesso schema."
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, message)
+                                }
+                                context.startActivity(Intent.createChooser(intent, "Condividi codice"))
+                            },
+                            modifier = Modifier.weight(1f).height(48.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
+                        ) { Text("Condividi codice", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                    }
+                }
+            }
+
             Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(22.dp)).padding(20.dp)) {
                 Text("Gioca lo stesso schema", color = Color(0xFF25344B), fontSize = 21.sp, fontWeight = FontWeight.Bold)
                 Text("Inserisci il codice ricevuto da un amico.", color = AppText, fontSize = 14.sp)
@@ -827,6 +892,44 @@ private fun ChallengeScreen(
                 }, colors = ButtonDefaults.buttonColors(containerColor = AppBlue)) { Text("Rigioca") }
             },
             dismissButton = { TextButton(onClick = { previousResult = null }) { Text("Annulla") } }
+        )
+    }
+
+    if (showChallengeLevelPicker) {
+        AlertDialog(
+            onDismissRequest = { showChallengeLevelPicker = false },
+            shape = RoundedCornerShape(26.dp),
+            containerColor = Color.White,
+            title = { Text("Livello della sfida", color = Color(0xFF25344B), fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    SudokuEngine.Difficulty.values().forEach { level ->
+                        val unlocked = stats.isUnlocked(level)
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .then(if (unlocked) Modifier.clickable {
+                                    challengeLevel = level
+                                    generatedCode = ""
+                                    showChallengeLevelPicker = false
+                                } else Modifier)
+                                .padding(vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                level.label.lowercase().replaceFirstChar { it.uppercase() },
+                                color = if (unlocked) Color(0xFF25344B) else AppText,
+                                fontSize = 18.sp,
+                                fontWeight = if (level == challengeLevel) FontWeight.Bold else FontWeight.Normal
+                            )
+                            Spacer(Modifier.weight(1f))
+                            if (!unlocked) Text("🔒")
+                            if (level == challengeLevel) Text("✓", color = AppBlue, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { showChallengeLevelPicker = false }) { Text("Annulla") } }
         )
     }
 }
