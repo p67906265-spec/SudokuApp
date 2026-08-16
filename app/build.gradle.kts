@@ -11,12 +11,22 @@ android {
         applicationId = "com.quaderno.sudoku"
         minSdk = 24
         targetSdk = 34
-        versionCode = 12
-        versionName = "1.11"
+        versionCode = 13
+        versionName = "1.12"
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = System.getenv("SUDOKU_KEYSTORE_PATH")?.let { file(it) }
+            storePassword = System.getenv("SUDOKU_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("SUDOKU_KEY_ALIAS")
+            keyPassword = System.getenv("SUDOKU_KEY_PASSWORD")
+        }
     }
 
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

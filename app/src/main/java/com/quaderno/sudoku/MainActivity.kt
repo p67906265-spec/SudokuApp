@@ -25,6 +25,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -670,58 +673,85 @@ private fun HomeScreen(
     onChallenges: () -> Unit
 ) {
     Column(
-        Modifier.fillMaxSize().background(Color(0xFFF3F6FB)).padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        Modifier.fillMaxSize().background(Color(0xFFF7F8FC)).verticalScroll(rememberScrollState()).padding(horizontal = 28.dp),
+        horizontalAlignment = Alignment.Start
     ) {
+        Spacer(Modifier.height(52.dp))
+        Text("Sudoku Free", color = Color(0xFF171A22), fontSize = 43.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold)
+        Text("gioca, rilassati, divertiti", color = AppBlue, fontSize = 19.sp, fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic)
+        Spacer(Modifier.height(16.dp))
+        HorizontalDivider(thickness = 2.dp, color = Color(0xFF2B2F38))
         Spacer(Modifier.height(30.dp))
-        Text("Sudoku Free", color = Color(0xFF203A61), fontSize = 39.sp, fontWeight = FontWeight.Bold)
-        Text("Allenati, rilassati, divertiti", color = AppText, fontSize = 16.sp)
-        Spacer(Modifier.height(38.dp))
 
-        Box(
-            Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(24.dp)).padding(24.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("9×9", color = AppBlue, fontSize = 56.sp, fontWeight = FontWeight.Bold)
-                Text("Una nuova sfida ti aspetta", color = AppText, fontSize = 17.sp)
-                Spacer(Modifier.height(24.dp))
-                Button(
-                    onClick = onPlay,
-                    modifier = Modifier.fillMaxWidth().height(58.dp),
-                    shape = RoundedCornerShape(30.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
-                ) { Text("GIOCA", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            HomeMiniGrid()
+            Spacer(Modifier.width(18.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Una griglia nuova\nti aspetta.", color = Color(0xFF242832), fontSize = 25.sp, lineHeight = 31.sp, fontFamily = FontFamily.Serif)
+                Spacer(Modifier.height(7.dp))
+                Text("Sei livelli, dal facile\nall’estremo", color = AppText, fontSize = 14.sp, lineHeight = 19.sp)
             }
         }
 
-        Spacer(Modifier.height(22.dp))
+        Spacer(Modifier.height(30.dp))
+        Button(
+            onClick = onPlay,
+            modifier = Modifier.fillMaxWidth().height(62.dp).border(1.5.dp, Color(0xFF222833), RoundedCornerShape(12.dp)),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF356DB9))
+        ) { Text("G I O C A", fontSize = 19.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold) }
+
+        Spacer(Modifier.height(34.dp))
         HomeMenuItem("★", "Statistiche", onStatistics)
-        Spacer(Modifier.height(12.dp))
         HomeMenuItem("#", "Sfide con codice", onChallenges)
-        Spacer(Modifier.height(12.dp))
         HomeMenuItem("⚙", "Impostazioni", onSettings)
-        Spacer(Modifier.height(12.dp))
         HomeMenuItem("?", "Come si gioca", onTutorial)
-        Spacer(Modifier.weight(1f))
-        Text("Sudoku senza pubblicità", color = AppText, fontSize = 13.sp)
+        Spacer(Modifier.height(28.dp))
     }
 }
 
 @Composable
 private fun HomeMenuItem(icon: String, title: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).clickable { onClick() }.padding(18.dp),
+        Modifier.fillMaxWidth().homeDashedBottom().clickable { onClick() }.padding(vertical = 19.dp, horizontal = 3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(44.dp).background(AppBlueSoft, CircleShape), contentAlignment = Alignment.Center) {
-            Text(icon, color = AppBlue, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-        }
-        Spacer(Modifier.width(16.dp))
-        Text(title, color = Color(0xFF25344B), fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+        Text("[$icon]", color = AppBlue, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(13.dp))
+        Text(title, color = Color(0xFF252A34), fontSize = 22.sp, fontFamily = FontFamily.Serif)
         Spacer(Modifier.weight(1f))
-        Text("›", color = Color(0xFFB1B8C2), fontSize = 34.sp)
+        Text("→", color = Color(0xFF7D838D), fontSize = 20.sp)
     }
+}
+
+@Composable
+private fun HomeMiniGrid() {
+    val numbers = mapOf(0 to 4, 4 to 9, 8 to 7)
+    Column(Modifier.size(122.dp).border(2.dp, Color(0xFF252A34))) {
+        repeat(3) { row ->
+            Row(Modifier.weight(1f)) {
+                repeat(3) { col ->
+                    val cell = row * 3 + col
+                    Box(
+                        Modifier.weight(1f).fillMaxHeight().border(0.5.dp, Color(0xFFB8C2CF)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        numbers[cell]?.let { Text("$it", color = Color(0xFF252A34), fontSize = 18.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun Modifier.homeDashedBottom(): Modifier = drawBehind {
+    drawLine(
+        color = Color(0xFFD1D6DE),
+        start = androidx.compose.ui.geometry.Offset(0f, size.height),
+        end = androidx.compose.ui.geometry.Offset(size.width, size.height),
+        strokeWidth = 1.dp.toPx(),
+        pathEffect = PathEffect.dashPathEffect(floatArrayOf(7f, 7f))
+    )
 }
 
 @Composable
