@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -279,6 +280,18 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
         checkWin()
     }
 
+    fun completeLastCell() {
+        if (won || remaining() != 1) return
+        val pos = board.indexOfFirst { it == 0 }
+        if (pos >= 0) {
+            pushHistory(pos)
+            board[pos] = solution[pos]
+            notes[pos].clear()
+            selected = pos
+            checkWin()
+        }
+    }
+
     private fun checkWin() {
         won = (0 until 81).all { board[it] == solution[it] }
     }
@@ -317,7 +330,12 @@ private fun SudokuAppRoot() {
             onSettings = { screen = AppScreen.SETTINGS },
             onTutorial = { screen = AppScreen.TUTORIAL }
         )
-        AppScreen.GAME -> SudokuScreen(game, onBack = { screen = AppScreen.HOME }, onSettings = { screen = AppScreen.SETTINGS })
+        AppScreen.GAME -> SudokuScreen(
+            game,
+            onBack = { screen = AppScreen.HOME },
+            onSettings = { screen = AppScreen.SETTINGS },
+            onChangeLevel = { showLevels = true }
+        )
         AppScreen.SETTINGS -> SettingsScreen { screen = AppScreen.HOME }
         AppScreen.TUTORIAL -> TutorialScreen { screen = AppScreen.HOME }
     }
@@ -493,7 +511,7 @@ private fun TutorialScreen(onBack: () -> Unit) {
 }
 
 @Composable
-fun SudokuScreen(game: GameState, onBack: () -> Unit, onSettings: () -> Unit) {
+fun SudokuScreen(game: GameState, onBack: () -> Unit, onSettings: () -> Unit, onChangeLevel: () -> Unit) {
 
     // timer: riparte a ogni nuova partita, si ferma automaticamente a vittoria
     LaunchedEffect(game.generation, game.won) {
@@ -521,12 +539,23 @@ fun SudokuScreen(game: GameState, onBack: () -> Unit, onSettings: () -> Unit) {
             Board(game)
             Spacer(Modifier.height(22.dp))
             ModernActions(game)
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(16.dp))
             NumberPad(game)
+            if (game.remaining() == 1 && !game.won) {
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = { game.completeLastCell() },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(26.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
+                ) {
+                    Text("Completa gioco", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
 
         if (game.paused) PauseOverlay(game)
-        if (game.won) WinOverlay(game)
+        if (game.won) WinOverlay(game, onMenu = onBack, onChangeLevel = onChangeLevel)
     }
 }
 
@@ -740,7 +769,14 @@ private fun NotesGrid(activeNotes: List<Int>) {
                     val n = row * 3 + col + 1
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                         if (activeNotes.contains(n)) {
-                            Text("$n", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF51677F))
+                            Text(
+                                "$n",
+                                fontSize = 10.sp,
+                                lineHeight = 10.sp,
+                                maxLines = 1,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF405D7C)
+                            )
                         }
                     }
                 }
@@ -806,9 +842,23 @@ private fun ActionRow(game: GameState) {
 private fun ModernActions(game: GameState) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
         ModernAction("↶", "Annulla") { game.undo() }
-        ModernAction("◇", "Cancella") { game.erase() }
+        EraserAction { game.erase() }
         ModernAction(if (game.notesMode) "✎ ON" else "✎", "Note", game.notesMode) { game.toggleNotes() }
         ModernAction("♧", "Suggerim.") { game.hint() }
+    }
+}
+
+@Composable
+private fun EraserAction(onClick: () -> Unit) {
+    Column(
+        modifier = Modifier.width(82.dp).clickable { onClick() },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            Modifier.padding(top = 7.dp, bottom = 8.dp).size(width = 31.dp, height = 19.dp)
+                .rotate(-35f).border(3.dp, AppText, RoundedCornerShape(4.dp))
+        )
+        Text("Cancella", color = AppText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -851,12 +901,11 @@ private fun NumberPad(game: GameState) {
                     .padding(vertical = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    "$n",
-                    fontWeight = FontWeight.Normal,
-                    fontSize = 34.sp,
-                    color = if (left > 0) AppBlue else AppBlue.copy(alpha = 0.2f)
-                )
+                if (left > 0) {
+                    Text("$n", fontWeight = FontWeight.Normal, fontSize = 34.sp, color = AppBlue)
+                } else {
+                    Text("✓", fontWeight = FontWeight.Bold, fontSize = 29.sp, color = AppBlue)
+                }
             }
         }
     }
@@ -878,15 +927,21 @@ private fun PauseOverlay(game: GameState) {
 }
 
 @Composable
-private fun WinOverlay(game: GameState) {
+private fun WinOverlay(game: GameState, onMenu: () -> Unit, onChangeLevel: () -> Unit) {
     Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.95f)), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("✓", color = AppBlue, fontSize = 68.sp)
             Text("Sudoku completato!", color = Color(0xFF263A58), fontSize = 25.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(16.dp))
-            Button(onClick = { game.reset() }, colors = ButtonDefaults.buttonColors(containerColor = AppBlue)) {
-                Text("Nuova partita")
-            }
+            Text("Livello ${game.difficulty.label.lowercase().replaceFirstChar { it.uppercase() }}", color = AppText, fontSize = 17.sp)
+            Spacer(Modifier.height(24.dp))
+            Button(
+                onClick = { game.reset() },
+                modifier = Modifier.width(230.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
+            ) { Text("Gioca ancora") }
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(onClick = onChangeLevel, modifier = Modifier.width(230.dp)) { Text("Cambia livello", color = AppBlue) }
+            TextButton(onClick = onMenu, modifier = Modifier.width(230.dp)) { Text("Torna al menu", color = AppText) }
         }
     }
 }
