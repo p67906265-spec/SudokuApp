@@ -7,10 +7,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshots.SnapshotStateList
@@ -290,17 +293,203 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                Surface(color = Paper) {
-                    SudokuScreen()
+                Surface(color = Color.White) {
+                    SudokuAppRoot()
                 }
             }
         }
     }
 }
 
+private enum class AppScreen { HOME, GAME, SETTINGS, TUTORIAL }
+
 @Composable
-fun SudokuScreen() {
+private fun SudokuAppRoot() {
+    var screen by remember { mutableStateOf(AppScreen.HOME) }
+    var showLevels by remember { mutableStateOf(false) }
     val game = remember { GameState(SudokuEngine.Difficulty.MEDIO) }
+
+    when (screen) {
+        AppScreen.HOME -> HomeScreen(
+            onPlay = { showLevels = true },
+            onSettings = { screen = AppScreen.SETTINGS },
+            onTutorial = { screen = AppScreen.TUTORIAL }
+        )
+        AppScreen.GAME -> SudokuScreen(game, onBack = { screen = AppScreen.HOME }, onSettings = { screen = AppScreen.SETTINGS })
+        AppScreen.SETTINGS -> SettingsScreen { screen = AppScreen.HOME }
+        AppScreen.TUTORIAL -> TutorialScreen { screen = AppScreen.HOME }
+    }
+
+    if (showLevels) {
+        DifficultyDialog(
+            onDismiss = { showLevels = false },
+            onSelected = {
+                game.reset(it)
+                showLevels = false
+                screen = AppScreen.GAME
+            }
+        )
+    }
+}
+
+@Composable
+private fun HomeScreen(onPlay: () -> Unit, onSettings: () -> Unit, onTutorial: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().background(Color(0xFFF3F6FB)).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(Modifier.height(30.dp))
+        Text("Sudoku", color = Color(0xFF203A61), fontSize = 42.sp, fontWeight = FontWeight.Bold)
+        Text("Allenati, rilassati, divertiti", color = AppText, fontSize = 16.sp)
+        Spacer(Modifier.height(38.dp))
+
+        Box(
+            Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(24.dp)).padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("9×9", color = AppBlue, fontSize = 56.sp, fontWeight = FontWeight.Bold)
+                Text("Una nuova sfida ti aspetta", color = AppText, fontSize = 17.sp)
+                Spacer(Modifier.height(24.dp))
+                Button(
+                    onClick = onPlay,
+                    modifier = Modifier.fillMaxWidth().height(58.dp),
+                    shape = RoundedCornerShape(30.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
+                ) { Text("GIOCA", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+            }
+        }
+
+        Spacer(Modifier.height(22.dp))
+        HomeMenuItem("⚙", "Impostazioni", onSettings)
+        Spacer(Modifier.height(12.dp))
+        HomeMenuItem("?", "Come si gioca", onTutorial)
+        Spacer(Modifier.weight(1f))
+        Text("Sudoku senza pubblicità", color = AppText, fontSize = 13.sp)
+    }
+}
+
+@Composable
+private fun HomeMenuItem(icon: String, title: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).clickable { onClick() }.padding(18.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(44.dp).background(AppBlueSoft, CircleShape), contentAlignment = Alignment.Center) {
+            Text(icon, color = AppBlue, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.width(16.dp))
+        Text(title, color = Color(0xFF25344B), fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.weight(1f))
+        Text("›", color = Color(0xFFB1B8C2), fontSize = 34.sp)
+    }
+}
+
+@Composable
+private fun DifficultyDialog(onDismiss: () -> Unit, onSelected: (SudokuEngine.Difficulty) -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(28.dp),
+        containerColor = Color.White,
+        title = { Text("Scegli il livello", color = Color(0xFF25344B), fontSize = 24.sp, fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                SudokuEngine.Difficulty.values().forEachIndexed { index, level ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { onSelected(level) }.padding(vertical = 17.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(Modifier.size(38.dp).background(AppBlueSoft, CircleShape), contentAlignment = Alignment.Center) {
+                            Text("${index + 1}", color = AppBlue, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.width(16.dp))
+                        Text(level.label.lowercase().replaceFirstChar { it.uppercase() }, color = AppBlue, fontSize = 20.sp)
+                    }
+                    if (index < 3) HorizontalDivider(color = Color(0xFFE5E8EC))
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Annulla", color = AppText) } }
+    )
+}
+
+@Composable
+private fun SimplePageHeader(title: String, onBack: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("‹", color = AppBlue, fontSize = 48.sp, modifier = Modifier.clickable { onBack() })
+        Spacer(Modifier.weight(1f))
+        Text(title, color = Color(0xFF17243A), fontSize = 23.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.width(28.dp))
+    }
+}
+
+@Composable
+private fun SettingsScreen(onBack: () -> Unit) {
+    var sounds by remember { mutableStateOf(true) }
+    var animations by remember { mutableStateOf(true) }
+    var errorLimit by remember { mutableStateOf(true) }
+    var smartHints by remember { mutableStateOf(true) }
+    Column(Modifier.fillMaxSize().background(Color(0xFFF0F3F9))) {
+        SimplePageHeader("Impostazioni", onBack)
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            SettingToggle("Suoni", sounds) { sounds = it }
+            SettingToggle("Animazione dei numeri", animations) { animations = it }
+            SettingToggle("Suggerimenti intelligenti", smartHints) { smartHints = it }
+            SettingToggle("Limite di 3 errori", errorLimit) { errorLimit = it }
+            Text("Le preferenze verranno applicate alle nuove partite.", color = AppText, fontSize = 14.sp, modifier = Modifier.padding(10.dp))
+        }
+    }
+}
+
+@Composable
+private fun SettingToggle(title: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).padding(horizontal = 18.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(title, color = Color(0xFF202A38), fontSize = 18.sp, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onChecked, colors = SwitchDefaults.colors(checkedTrackColor = AppBlue))
+    }
+}
+
+@Composable
+private fun TutorialScreen(onBack: () -> Unit) {
+    var page by remember { mutableStateOf(0) }
+    val titles = listOf("Righe, colonne e blocchi", "Inserisci i numeri", "Usa le note")
+    val bodies = listOf(
+        "Completa ogni riga, ogni colonna e ogni blocco 3×3 usando i numeri da 1 a 9 senza ripeterli.",
+        "Tocca una casella vuota, poi scegli uno dei numeri da 1 a 9 nella tastiera in basso.",
+        "Attiva Note per segnare più possibilità nella stessa casella. Cancella e Annulla ti aiutano a correggere le mosse."
+    )
+    Column(Modifier.fillMaxSize().background(Color.White), horizontalAlignment = Alignment.CenterHorizontally) {
+        SimplePageHeader("Come si gioca", onBack)
+        Spacer(Modifier.height(35.dp))
+        Box(Modifier.size(220.dp).background(AppBlueSoft, RoundedCornerShape(28.dp)), contentAlignment = Alignment.Center) {
+            Text(if (page == 0) "3×3" else if (page == 1) "1 2 3\n4 5 6\n7 8 9" else "✎  2·5·8", color = AppBlue,
+                fontSize = if (page == 0) 54.sp else 34.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        }
+        Spacer(Modifier.height(35.dp))
+        Text(titles[page], color = Color(0xFF233654), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(16.dp))
+        Text(bodies[page], color = AppText, fontSize = 18.sp, textAlign = TextAlign.Center, lineHeight = 27.sp,
+            modifier = Modifier.padding(horizontal = 34.dp))
+        Spacer(Modifier.weight(1f))
+        Text("${page + 1}  di  3", color = AppText, fontSize = 15.sp)
+        Spacer(Modifier.height(18.dp))
+        Row(Modifier.fillMaxWidth().padding(24.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            if (page > 0) FloatingActionButton(onClick = { page-- }, containerColor = AppBlue) { Text("←", color = Color.White, fontSize = 28.sp) }
+            else Spacer(Modifier.size(56.dp))
+            FloatingActionButton(onClick = { if (page < 2) page++ else onBack() }, containerColor = AppBlue) {
+                Text(if (page < 2) "→" else "✓", color = Color.White, fontSize = 28.sp)
+            }
+        }
+    }
+}
+
+@Composable
+fun SudokuScreen(game: GameState, onBack: () -> Unit, onSettings: () -> Unit) {
 
     // timer: riparte a ogni nuova partita, si ferma automaticamente a vittoria
     LaunchedEffect(game.generation, game.won) {
@@ -321,7 +510,7 @@ fun SudokuScreen() {
                 .padding(horizontal = 6.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            ModernTopBar(game)
+            ModernTopBar(game, onBack, onSettings)
             Spacer(Modifier.height(10.dp))
             ModernStats(game)
             Spacer(Modifier.height(8.dp))
@@ -338,7 +527,7 @@ fun SudokuScreen() {
 }
 
 @Composable
-private fun ModernTopBar(game: GameState) {
+private fun ModernTopBar(game: GameState, onBack: () -> Unit, onSettings: () -> Unit) {
     val m = (game.seconds / 60).toString().padStart(2, '0')
     val s = (game.seconds % 60).toString().padStart(2, '0')
     Row(
@@ -346,13 +535,13 @@ private fun ModernTopBar(game: GameState) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text("‹", color = AppBlue, fontSize = 48.sp, fontWeight = FontWeight.Light)
+        Text("‹", color = AppBlue, fontSize = 48.sp, fontWeight = FontWeight.Light, modifier = Modifier.clickable { onBack() })
         Text("$m:$s", color = Color(0xFF263A58), fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
             Text("⟳", color = AppBlue, fontSize = 38.sp, modifier = Modifier.clickable { game.reset() })
             Text(if (game.paused) "▶" else "Ⅱ", color = AppBlue, fontSize = 30.sp,
                 modifier = Modifier.clickable { game.paused = !game.paused })
-            Text("⚙", color = AppBlue, fontSize = 34.sp)
+            Text("⚙", color = AppBlue, fontSize = 34.sp, modifier = Modifier.clickable { onSettings() })
         }
     }
 }
