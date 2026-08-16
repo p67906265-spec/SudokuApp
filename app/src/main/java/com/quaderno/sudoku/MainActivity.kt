@@ -1,6 +1,7 @@
 package com.quaderno.sudoku
 
 import android.os.Bundle
+import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -189,6 +190,8 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
     var selected by mutableStateOf(-1)
     var notesMode by mutableStateOf(false)
     var mistakes by mutableStateOf(0)
+    var hintsUsed by mutableStateOf(0)
+    var autoCompleted by mutableStateOf(false)
     var seconds by mutableStateOf(0)
     var won by mutableStateOf(false)
     var paused by mutableStateOf(false)
@@ -209,6 +212,8 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
         selected = -1
         notesMode = false
         mistakes = 0
+        hintsUsed = 0
+        autoCompleted = false
         seconds = 0
         won = false
         paused = false
@@ -267,6 +272,7 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
 
     fun hint() {
         if (won) return
+        hintsUsed++
         var pos = selected
         if (pos == -1 || given[pos] || board[pos] == solution[pos]) {
             val candidates = (0 until 81).filter { !given[it] && board[it] != solution[it] }
@@ -282,6 +288,7 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
 
     fun completeLastCell() {
         if (won || remaining() != 1) return
+        autoCompleted = true
         val pos = board.indexOfFirst { it == 0 }
         if (pos >= 0) {
             pushHistory(pos)
@@ -298,6 +305,82 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
 
     fun remaining(): Int = board.count { it == 0 }
     fun placedCount(n: Int): Int = board.count { it == n }
+
+    fun score(final: Boolean = won): Int {
+        val base = intArrayOf(1000, 2000, 3500, 5000, 7500, 10000)[difficulty.ordinal]
+        val editable = given.count { !it }.coerceAtLeast(1)
+        val correct = (0 until 81).count { !given[it] && board[it] == solution[it] }
+        var points = if (final) base else base * correct / editable
+        points -= mistakes * 100 + hintsUsed * 200
+        if (final) {
+            if (mistakes == 0) points += base * 20 / 100
+            if (hintsUsed == 0) points += base * 10 / 100
+            if (!autoCompleted) {
+                val target = intArrayOf(600, 900, 1200, 1500, 1800, 2100)[difficulty.ordinal]
+                points += base * (target - seconds).coerceAtLeast(0) / target / 2
+            }
+        }
+        return points.coerceAtLeast(0)
+    }
+}
+
+private data class LevelStats(
+    val started: Int, val completed: Int, val abandoned: Int,
+    val totalSeconds: Long, val bestSeconds: Int, val bestScore: Int, val flawless: Int
+)
+
+private class StatsStore(context: Context) {
+    private val prefs = context.getSharedPreferences("sudoku_stats", Context.MODE_PRIVATE)
+    private var activeLevel: SudokuEngine.Difficulty? = null
+    private fun key(level: SudokuEngine.Difficulty, field: String) = "${level.name}_$field"
+    private fun int(level: SudokuEngine.Difficulty, field: String) = prefs.getInt(key(level, field), 0)
+
+    fun stats(level: SudokuEngine.Difficulty) = LevelStats(
+        int(level, "started"), int(level, "completed"), int(level, "abandoned"),
+        prefs.getLong(key(level, "totalSeconds"), 0L), int(level, "bestSeconds"),
+        int(level, "bestScore"), int(level, "flawless")
+    )
+
+    fun isUnlocked(level: SudokuEngine.Difficulty): Boolean =
+        level.ordinal < 2 || stats(SudokuEngine.Difficulty.values()[level.ordinal - 1]).completed >= 5
+
+    fun unlockProgress(level: SudokuEngine.Difficulty): Int = if (level.ordinal < 2) 5 else
+        stats(SudokuEngine.Difficulty.values()[level.ordinal - 1]).completed.coerceAtMost(5)
+
+    fun start(level: SudokuEngine.Difficulty) {
+        abandonActive()
+        activeLevel = level
+        prefs.edit().putInt(key(level, "started"), int(level, "started") + 1).apply()
+    }
+
+    fun abandonActive() {
+        val level = activeLevel ?: return
+        prefs.edit().putInt(key(level, "abandoned"), int(level, "abandoned") + 1).apply()
+        activeLevel = null
+        updateStreak(false)
+    }
+
+    fun complete(game: GameState) {
+        val level = activeLevel ?: return
+        val old = stats(level)
+        val bestTime = if (old.bestSeconds == 0) game.seconds else minOf(old.bestSeconds, game.seconds)
+        prefs.edit().putInt(key(level, "completed"), old.completed + 1)
+            .putLong(key(level, "totalSeconds"), old.totalSeconds + game.seconds)
+            .putInt(key(level, "bestSeconds"), bestTime)
+            .putInt(key(level, "bestScore"), maxOf(old.bestScore, game.score(true)))
+            .putInt(key(level, "flawless"), old.flawless + if (game.mistakes == 0) 1 else 0).apply()
+        activeLevel = null
+        updateStreak(true)
+    }
+
+    private fun updateStreak(won: Boolean) {
+        val current = if (won) prefs.getInt("currentStreak", 0) + 1 else 0
+        prefs.edit().putInt("currentStreak", current)
+            .putInt("bestStreak", maxOf(prefs.getInt("bestStreak", 0), current)).apply()
+    }
+
+    fun currentStreak() = prefs.getInt("currentStreak", 0)
+    fun bestStreak() = prefs.getInt("bestStreak", 0)
 }
 
 // ---------------------------------------------------------------------------
@@ -316,32 +399,62 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class AppScreen { HOME, GAME, SETTINGS, TUTORIAL }
+private enum class AppScreen { HOME, GAME, SETTINGS, TUTORIAL, STATISTICS }
 
 @Composable
 private fun SudokuAppRoot() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val stats = remember { StatsStore(context) }
+    var statsVersion by remember { mutableStateOf(0) }
     var screen by remember { mutableStateOf(AppScreen.HOME) }
     var showLevels by remember { mutableStateOf(false) }
     val game = remember { GameState(SudokuEngine.Difficulty.MEDIO) }
+
+    LaunchedEffect(game.won, game.generation) {
+        if (game.won) {
+            stats.complete(game)
+            statsVersion++
+        }
+    }
+
+    LaunchedEffect(game.generation, screen) {
+        if (screen == AppScreen.GAME && !game.won) {
+            stats.start(game.difficulty)
+            statsVersion++
+        }
+    }
 
     when (screen) {
         AppScreen.HOME -> HomeScreen(
             onPlay = { showLevels = true },
             onSettings = { screen = AppScreen.SETTINGS },
-            onTutorial = { screen = AppScreen.TUTORIAL }
+            onTutorial = { screen = AppScreen.TUTORIAL },
+            onStatistics = { screen = AppScreen.STATISTICS }
         )
         AppScreen.GAME -> SudokuScreen(
             game,
-            onBack = { screen = AppScreen.HOME },
-            onSettings = { screen = AppScreen.SETTINGS },
+            statsVersion = statsVersion,
+            onBack = {
+                if (!game.won) stats.abandonActive()
+                statsVersion++
+                screen = AppScreen.HOME
+            },
+            onSettings = {
+                if (!game.won) stats.abandonActive()
+                statsVersion++
+                screen = AppScreen.SETTINGS
+            },
             onChangeLevel = { showLevels = true }
         )
         AppScreen.SETTINGS -> SettingsScreen { screen = AppScreen.HOME }
         AppScreen.TUTORIAL -> TutorialScreen { screen = AppScreen.HOME }
+        AppScreen.STATISTICS -> StatisticsScreen(stats, statsVersion) { screen = AppScreen.HOME }
     }
 
     if (showLevels) {
         DifficultyDialog(
+            stats = stats,
+            statsVersion = statsVersion,
             onDismiss = { showLevels = false },
             onSelected = {
                 game.reset(it)
@@ -353,7 +466,12 @@ private fun SudokuAppRoot() {
 }
 
 @Composable
-private fun HomeScreen(onPlay: () -> Unit, onSettings: () -> Unit, onTutorial: () -> Unit) {
+private fun HomeScreen(
+    onPlay: () -> Unit,
+    onSettings: () -> Unit,
+    onTutorial: () -> Unit,
+    onStatistics: () -> Unit
+) {
     Column(
         Modifier.fillMaxSize().background(Color(0xFFF3F6FB)).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -381,6 +499,8 @@ private fun HomeScreen(onPlay: () -> Unit, onSettings: () -> Unit, onTutorial: (
         }
 
         Spacer(Modifier.height(22.dp))
+        HomeMenuItem("★", "Statistiche", onStatistics)
+        Spacer(Modifier.height(12.dp))
         HomeMenuItem("⚙", "Impostazioni", onSettings)
         Spacer(Modifier.height(12.dp))
         HomeMenuItem("?", "Come si gioca", onTutorial)
@@ -406,7 +526,13 @@ private fun HomeMenuItem(icon: String, title: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun DifficultyDialog(onDismiss: () -> Unit, onSelected: (SudokuEngine.Difficulty) -> Unit) {
+private fun DifficultyDialog(
+    stats: StatsStore,
+    statsVersion: Int,
+    onDismiss: () -> Unit,
+    onSelected: (SudokuEngine.Difficulty) -> Unit
+) {
+    statsVersion
     AlertDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(28.dp),
@@ -415,15 +541,36 @@ private fun DifficultyDialog(onDismiss: () -> Unit, onSelected: (SudokuEngine.Di
         text = {
             Column {
                 SudokuEngine.Difficulty.values().forEachIndexed { index, level ->
+                    val unlocked = stats.isUnlocked(level)
                     Row(
-                        Modifier.fillMaxWidth().clickable { onSelected(level) }.padding(vertical = 17.dp),
+                        Modifier.fillMaxWidth()
+                            .then(if (unlocked) Modifier.clickable { onSelected(level) } else Modifier)
+                            .padding(vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(Modifier.size(38.dp).background(AppBlueSoft, CircleShape), contentAlignment = Alignment.Center) {
-                            Text("${index + 1}", color = AppBlue, fontWeight = FontWeight.Bold)
+                        Box(
+                            Modifier.size(38.dp).background(if (unlocked) AppBlueSoft else Color(0xFFE9EBEF), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(if (unlocked) "${index + 1}" else "🔒", color = if (unlocked) AppBlue else AppText, fontWeight = FontWeight.Bold)
                         }
                         Spacer(Modifier.width(16.dp))
-                        Text(level.label.lowercase().replaceFirstChar { it.uppercase() }, color = AppBlue, fontSize = 20.sp)
+                        Column {
+                            Text(
+                                level.label.lowercase().replaceFirstChar { it.uppercase() },
+                                color = if (unlocked) AppBlue else AppText,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            if (!unlocked) {
+                                val previous = SudokuEngine.Difficulty.values()[level.ordinal - 1]
+                                Text(
+                                    "${stats.unlockProgress(level)}/5 partite ${previous.label.lowercase()} completate",
+                                    color = AppText,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
                     }
                     if (index < SudokuEngine.Difficulty.values().lastIndex) {
                         HorizontalDivider(color = Color(0xFFE5E8EC))
@@ -445,6 +592,75 @@ private fun SimplePageHeader(title: String, onBack: () -> Unit) {
         Spacer(Modifier.weight(1f))
         Spacer(Modifier.width(28.dp))
     }
+}
+
+@Composable
+private fun StatisticsScreen(stats: StatsStore, statsVersion: Int, onBack: () -> Unit) {
+    statsVersion
+    val levels = SudokuEngine.Difficulty.values()
+    val all = levels.map { stats.stats(it) }
+    val totalCompleted = all.sumOf { it.completed }
+    val totalSeconds = all.sumOf { it.totalSeconds }
+
+    Column(Modifier.fillMaxSize().background(Color(0xFFF0F3F9))) {
+        SimplePageHeader("Statistiche", onBack)
+        Column(
+            Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SummaryCard("Completate", totalCompleted.toString(), Modifier.weight(1f))
+                SummaryCard("Tempo totale", formatDuration(totalSeconds), Modifier.weight(1f))
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SummaryCard("Serie attuale", stats.currentStreak().toString(), Modifier.weight(1f))
+                SummaryCard("Serie migliore", stats.bestStreak().toString(), Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(4.dp))
+            Text("Partite per livello", color = Color(0xFF25344B), fontSize = 21.sp, fontWeight = FontWeight.Bold)
+            levels.forEach { level ->
+                val s = stats.stats(level)
+                val average = if (s.completed == 0) 0 else (s.totalSeconds / s.completed).toInt()
+                Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).padding(17.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            level.label.lowercase().replaceFirstChar { it.uppercase() },
+                            color = if (stats.isUnlocked(level)) AppBlue else AppText,
+                            fontSize = 19.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.weight(1f))
+                        if (!stats.isUnlocked(level)) Text("🔒", fontSize = 18.sp)
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text("Iniziate ${s.started}  •  Completate ${s.completed}  •  Abbandonate ${s.abandoned}", color = AppText, fontSize = 13.sp)
+                    Text("Tempo migliore ${formatTime(s.bestSeconds)}  •  Tempo medio ${formatTime(average)}", color = AppText, fontSize = 13.sp)
+                    Text("Miglior punteggio ${s.bestScore}  •  Senza errori ${s.flawless}", color = AppText, fontSize = 13.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryCard(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier.background(Color.White, RoundedCornerShape(18.dp)).padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(value, color = AppBlue, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = AppText, fontSize = 13.sp, textAlign = TextAlign.Center)
+    }
+}
+
+private fun formatTime(seconds: Int): String =
+    if (seconds <= 0) "—" else "%02d:%02d".format(seconds / 60, seconds % 60)
+
+private fun formatDuration(seconds: Long): String {
+    if (seconds <= 0L) return "0 min"
+    val hours = seconds / 3600
+    val minutes = (seconds % 3600) / 60
+    return if (hours > 0) "${hours}h ${minutes}m" else "${minutes.coerceAtLeast(1)} min"
 }
 
 @Composable
@@ -511,7 +727,14 @@ private fun TutorialScreen(onBack: () -> Unit) {
 }
 
 @Composable
-fun SudokuScreen(game: GameState, onBack: () -> Unit, onSettings: () -> Unit, onChangeLevel: () -> Unit) {
+fun SudokuScreen(
+    game: GameState,
+    statsVersion: Int,
+    onBack: () -> Unit,
+    onSettings: () -> Unit,
+    onChangeLevel: () -> Unit
+) {
+    statsVersion
 
     // timer: riparte a ogni nuova partita, si ferma automaticamente a vittoria
     LaunchedEffect(game.generation, game.won) {
@@ -583,11 +806,8 @@ private fun ModernTopBar(game: GameState, onBack: () -> Unit, onSettings: () -> 
 private fun ModernStats(game: GameState) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
         ModernStat("Oggi", "★ 0")
-        ModernStat("Difficoltà", game.difficulty.label.lowercase().replaceFirstChar { it.uppercase() }, true) {
-            val values = SudokuEngine.Difficulty.values()
-            game.reset(values[(game.difficulty.ordinal + 1) % values.size])
-        }
-        ModernStat("Punteggio", "${(game.board.count { it != 0 } - game.given.count { it }) * 10}")
+        ModernStat("Difficoltà", game.difficulty.label.lowercase().replaceFirstChar { it.uppercase() })
+        ModernStat("Punteggio", "${game.score()}")
         ModernStat("Errori", "${game.mistakes}/3")
     }
 }
@@ -933,6 +1153,7 @@ private fun WinOverlay(game: GameState, onMenu: () -> Unit, onChangeLevel: () ->
             Text("✓", color = AppBlue, fontSize = 68.sp)
             Text("Sudoku completato!", color = Color(0xFF263A58), fontSize = 25.sp, fontWeight = FontWeight.Bold)
             Text("Livello ${game.difficulty.label.lowercase().replaceFirstChar { it.uppercase() }}", color = AppText, fontSize = 17.sp)
+            Text("Punteggio ${game.score(true)}", color = AppBlue, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(24.dp))
             Button(
                 onClick = { game.reset() },
