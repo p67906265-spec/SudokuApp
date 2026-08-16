@@ -1109,32 +1109,93 @@ private fun SettingToggle(title: String, checked: Boolean, onChecked: (Boolean) 
 @Composable
 private fun TutorialScreen(onBack: () -> Unit) {
     var page by remember { mutableStateOf(0) }
-    val titles = listOf("Righe, colonne e blocchi", "Inserisci i numeri", "Usa le note")
     val bodies = listOf(
-        "Completa ogni riga, ogni colonna e ogni blocco 3×3 usando i numeri da 1 a 9 senza ripeterli.",
-        "Tocca una casella vuota, poi scegli uno dei numeri da 1 a 9 nella tastiera in basso.",
-        "Attiva Note per segnare più possibilità nella stessa casella. Cancella e Annulla ti aiutano a correggere le mosse."
+        "Un Sudoku si completa quando ogni numero da 1 a 9 appare una sola volta in ogni riga, colonna e riquadro 3×3.",
+        "Seleziona una casella vuota e tocca un numero per inserirlo.",
+        "Attiva Note per aggiungere o rimuovere i possibili numeri nelle caselle."
     )
     Column(Modifier.fillMaxSize().background(Color.White), horizontalAlignment = Alignment.CenterHorizontally) {
         SimplePageHeader("Come si gioca", onBack)
-        Spacer(Modifier.height(35.dp))
-        Box(Modifier.size(220.dp).background(AppBlueSoft, RoundedCornerShape(28.dp)), contentAlignment = Alignment.Center) {
-            Text(if (page == 0) "3×3" else if (page == 1) "1 2 3\n4 5 6\n7 8 9" else "✎  2·5·8", color = AppBlue,
-                fontSize = if (page == 0) 54.sp else 34.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-        }
-        Spacer(Modifier.height(35.dp))
-        Text(titles[page], color = Color(0xFF233654), fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(16.dp))
-        Text(bodies[page], color = AppText, fontSize = 18.sp, textAlign = TextAlign.Center, lineHeight = 27.sp,
-            modifier = Modifier.padding(horizontal = 34.dp))
+        TutorialVisual(page)
+        Spacer(Modifier.height(14.dp))
+        Text(bodies[page], color = Color(0xFF303442), fontSize = 16.sp, textAlign = TextAlign.Center, lineHeight = 22.sp,
+            modifier = Modifier.padding(horizontal = 28.dp))
         Spacer(Modifier.weight(1f))
-        Text("${page + 1}  di  3", color = AppText, fontSize = 15.sp)
-        Spacer(Modifier.height(18.dp))
-        Row(Modifier.fillMaxWidth().padding(24.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            if (page > 0) FloatingActionButton(onClick = { page-- }, containerColor = AppBlue) { Text("←", color = Color.White, fontSize = 28.sp) }
-            else Spacer(Modifier.size(56.dp))
-            FloatingActionButton(onClick = { if (page < 2) page++ else onBack() }, containerColor = AppBlue) {
-                Text(if (page < 2) "→" else "✓", color = Color.White, fontSize = 28.sp)
+        Row(Modifier.fillMaxWidth().padding(horizontal = 26.dp, vertical = 22.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Salta", color = AppBlue, fontSize = 17.sp, modifier = Modifier.clickable { onBack() })
+            Spacer(Modifier.weight(1f))
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                repeat(3) { dot -> Box(Modifier.size(9.dp).background(if (dot == page) AppBlue else Color(0xFFB7BAC0), CircleShape)) }
+            }
+            Spacer(Modifier.weight(1f))
+            Text(if (page < 2) "Prossimo" else "Inizia", color = AppBlue, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clickable { if (page < 2) page++ else onBack() })
+        }
+    }
+}
+
+@Composable
+private fun TutorialVisual(page: Int) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        TutorialBoard(page)
+        if (page > 0) {
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+                TutorialTool("↶", "Annulla")
+                TutorialTool("▱", "Cancella")
+                TutorialTool(if (page == 2) "✎ ON" else "✎ OFF", "Note", page == 2)
+                TutorialTool("♧", "Suggerimento")
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                for (n in 1..9) Text("$n", color = if (page == 2) Color(0xFFB8C0CF) else AppBlue, fontSize = 27.sp)
+            }
+            Text(
+                if (page == 1) "Tocca il numero per riempire la casella selezionata" else "Attiva le Note per segnare più possibilità",
+                color = Color.White, fontSize = 14.sp, textAlign = TextAlign.Center,
+                modifier = Modifier.background(Color(0xE62D3043), RoundedCornerShape(15.dp)).padding(horizontal = 20.dp, vertical = 9.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun TutorialTool(icon: String, label: String, active: Boolean = false) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(icon, color = if (active) AppBlue else Color(0xFF343849), fontSize = 21.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = AppText, fontSize = 10.sp)
+    }
+}
+
+@Composable
+private fun TutorialBoard(page: Int) {
+    val solved = intArrayOf(
+        1,2,5,9,3,7,8,4,6, 9,8,6,4,5,1,3,2,7, 7,3,4,6,8,2,1,9,5,
+        5,1,8,3,7,4,9,6,2, 4,9,3,1,2,6,7,5,8, 2,6,7,5,9,8,4,1,3,
+        8,7,9,2,4,5,6,3,1, 3,5,1,7,6,9,2,8,4, 6,4,2,8,1,3,5,7,9
+    )
+    val visible = setOf(0,1,2,9,20,22,24,25,35,39,41,43,44,45,47,49,51,58,61,62,66,73,74,75,79)
+    Column(Modifier.fillMaxWidth().aspectRatio(1f).border(2.dp, Color(0xFF202437))) {
+        for (r in 0..8) {
+            Row(Modifier.weight(1f)) {
+                for (c in 0..8) {
+                    val pos = r * 9 + c
+                    val selected = page > 0 && pos == 20
+                    val highlighted = page == 0 && (r == 2 || c == 3 || (r >= 6 && c >= 6))
+                    Box(
+                        Modifier.weight(1f).fillMaxHeight()
+                            .background(if (selected) Color(0xFFAFC8FF) else if (highlighted) Color(0xFFE4E8F4) else Color.White)
+                            .border(0.5.dp, Color(0xFFC8CDD6))
+                            .thickEdge(right = c == 2 || c == 5, bottom = r == 2 || r == 5),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (page == 2 && pos == 20) {
+                            NotesGrid(listOf(2,4,6,7,9))
+                        } else if (page == 0 || pos in visible) {
+                            Text("${solved[pos]}", color = if ((pos + r) % 3 == 0) AppBlue else Color(0xFF202437), fontSize = 20.sp)
+                        }
+                    }
+                }
             }
         }
     }
@@ -1536,17 +1597,19 @@ private fun NumberPad(game: GameState) {
     Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
         for (n in 1..9) {
             val left = 9 - game.placedCount(n)
-            Box(
+            Column(
                 modifier = Modifier
                     .weight(1f)
                     .then(if (left > 0) Modifier.clickable { game.input(n) } else Modifier)
-                    .padding(vertical = 8.dp),
-                contentAlignment = Alignment.Center
+                    .padding(vertical = 5.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (left > 0) {
                     Text("$n", fontWeight = FontWeight.Normal, fontSize = 34.sp, color = AppBlue)
+                    Text("$left", fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = Color(0xFF9AA3B2))
                 } else {
                     Text("✓", fontWeight = FontWeight.Bold, fontSize = 29.sp, color = AppBlue)
+                    Text(" ", fontSize = 11.sp)
                 }
             }
         }
@@ -1570,22 +1633,29 @@ private fun PauseOverlay(game: GameState) {
 
 @Composable
 private fun FailureOverlay(game: GameState) {
-    Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.96f)), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("×", color = Color(0xFFD14A4A), fontSize = 68.sp, fontWeight = FontWeight.Bold)
-            Text("3 errori", color = Color(0xFF263A58), fontSize = 27.sp, fontWeight = FontWeight.Bold)
-            Text("La partita è terminata", color = AppText, fontSize = 17.sp)
-            Spacer(Modifier.height(26.dp))
+    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.48f)), contentAlignment = Alignment.Center) {
+        Column(
+            Modifier.padding(horizontal = 30.dp).fillMaxWidth().background(Color.White, RoundedCornerShape(26.dp)).padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("Hai perso", color = Color(0xFF202332), fontSize = 34.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "Hai perso la partita perché hai commesso 3 errori",
+                color = Color(0xFF303442), fontSize = 19.sp, lineHeight = 27.sp, textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(28.dp))
             Button(
                 onClick = { game.retry() },
-                modifier = Modifier.width(230.dp).height(50.dp),
+                modifier = Modifier.fillMaxWidth().height(54.dp),
+                shape = RoundedCornerShape(27.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
-            ) { Text("Riprova", fontSize = 17.sp, fontWeight = FontWeight.Bold) }
-            Spacer(Modifier.height(10.dp))
-            OutlinedButton(
+            ) { Text("Riprova", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+            Spacer(Modifier.height(8.dp))
+            TextButton(
                 onClick = { game.reset() },
-                modifier = Modifier.width(230.dp).height(50.dp)
-            ) { Text("Cambia schema", color = AppBlue, fontSize = 17.sp) }
+                modifier = Modifier.fillMaxWidth().height(50.dp)
+            ) { Text("Cambia schema", color = AppBlue, fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
         }
     }
 }
