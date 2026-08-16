@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.content.Context
 import android.content.Intent
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -194,6 +195,18 @@ private object ChallengeCodes {
     fun seed(code: String): Int = normalize(code).hashCode()
 
     fun daily(date: LocalDate): String {
+        val digits = "%02d%02d%02d".format(date.year % 100, date.monthValue, date.dayOfMonth)
+        val body = digits.map { digit ->
+            when (digit) {
+                '0' -> 'A'
+                '1' -> 'B'
+                else -> digit
+            }
+        }.joinToString("")
+        return "ME-$body"
+    }
+
+    fun legacyDaily(date: LocalDate): String {
         val random = Random(date.toEpochDay().toInt())
         val body = buildString { repeat(6) { append(CHARS[random.nextInt(CHARS.length)]) } }
         return "ME-$body"
@@ -604,12 +617,18 @@ private fun SudokuAppRoot() {
     var statsVersion by remember { mutableStateOf(0) }
     var screen by remember { mutableStateOf(AppScreen.HOME) }
     var showLevels by remember { mutableStateOf(false) }
+    var showDailyExitDialog by remember { mutableStateOf(false) }
+    var dailyGameDate by remember { mutableStateOf<LocalDate?>(null) }
     val game = remember { GameState(SudokuEngine.Difficulty.MEDIO, settings) }
 
     LaunchedEffect(game.won, game.generation) {
         if (game.won) {
             stats.complete(game)
             statsVersion++
+            if (dailyGameDate != null) {
+                dailyGameDate = null
+                screen = AppScreen.DAILY
+            }
         }
     }
 
@@ -633,9 +652,13 @@ private fun SudokuAppRoot() {
             game,
             statsVersion = statsVersion,
             onBack = {
-                if (!game.won) stats.abandonActive()
-                statsVersion++
-                screen = AppScreen.HOME
+                if (dailyGameDate != null && !game.won) {
+                    showDailyExitDialog = true
+                } else {
+                    if (!game.won) stats.abandonActive()
+                    statsVersion++
+                    screen = AppScreen.HOME
+                }
             },
             onSettings = {
                 if (!game.won) stats.abandonActive()
@@ -663,6 +686,10 @@ private fun SudokuAppRoot() {
             statsVersion = statsVersion,
             onBack = { screen = AppScreen.HOME },
             onPlay = { code ->
+                dailyGameDate = LocalDate.now().let { today ->
+                    (1..today.dayOfMonth).map { YearMonth.from(today).atDay(it) }
+                        .firstOrNull { ChallengeCodes.daily(it) == code }
+                }
                 game.reset(SudokuEngine.Difficulty.MEDIO, code)
                 screen = AppScreen.GAME
             }
@@ -678,6 +705,32 @@ private fun SudokuAppRoot() {
                 game.reset(it)
                 showLevels = false
                 screen = AppScreen.GAME
+            }
+        )
+    }
+
+    if (showDailyExitDialog) {
+        AlertDialog(
+            onDismissRequest = { showDailyExitDialog = false },
+            title = { Text("Sfida del giorno", fontWeight = FontWeight.Bold) },
+            text = { Text("Cosa vuoi fare con la partita in corso?") },
+            confirmButton = {
+                TextButton(onClick = { showDailyExitDialog = false }) { Text("Continua la partita") }
+            },
+            dismissButton = {
+                Column(horizontalAlignment = Alignment.End) {
+                    TextButton(onClick = {
+                        game.retry()
+                        showDailyExitDialog = false
+                    }) { Text("Ricomincia") }
+                    TextButton(onClick = {
+                        stats.abandonActive()
+                        statsVersion++
+                        dailyGameDate = null
+                        showDailyExitDialog = false
+                        screen = AppScreen.DAILY
+                    }) { Text("Annulla") }
+                }
             }
         )
     }
@@ -790,8 +843,17 @@ private fun DailyChallengeScreen(
         "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
     )
     val completedDays = (1..month.lengthOfMonth()).filter { day ->
-        stats.challengeResult(ChallengeCodes.daily(month.atDay(day))) != null
+        val date = month.atDay(day)
+        stats.challengeResult(ChallengeCodes.daily(date)) != null ||
+            stats.challengeResult(ChallengeCodes.legacyDaily(date)) != null
     }.toSet()
+    var selectedDate by remember(month, statsVersion) {
+        mutableStateOf(
+            (1..today.dayOfMonth)
+                .firstOrNull { it !in completedDays }
+                ?.let(month::atDay)
+        )
+    }
     val firstOffset = month.atDay(1).dayOfWeek.value - 1
     val calendarCells = firstOffset + month.lengthOfMonth()
     val rows = (calendarCells + 6) / 7
@@ -806,7 +868,10 @@ private fun DailyChallengeScreen(
                 Text("Sfida del giorno", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(14.dp))
                 Text("🏆", fontSize = 76.sp)
-                Text("${today.dayOfMonth} ${monthNames[today.monthValue - 1]} ${today.year}", color = Color.White.copy(alpha = 0.9f), fontSize = 15.sp)
+                Text(
+                    selectedDate?.let { "${it.dayOfMonth} ${monthNames[it.monthValue - 1]} ${it.year}" } ?: "Mese completato",
+                    color = Color.White.copy(alpha = 0.9f), fontSize = 15.sp
+                )
             }
         }
 
@@ -835,21 +900,29 @@ private fun DailyChallengeScreen(
                                 val completed = day in completedDays
                                 val isToday = day == today.dayOfMonth
                                 val isFuture = day > today.dayOfMonth
+                                val isSelected = selectedDate?.dayOfMonth == day
                                 Box(
-                                    Modifier.size(39.dp).then(
-                                        when {
-                                            completed -> Modifier.background(Color(0xFFFFC32D), CircleShape)
-                                            isToday -> Modifier.background(Color(0xFF358DE5), CircleShape)
-                                            else -> Modifier
-                                        }
-                                    ),
+                                    Modifier.size(39.dp)
+                                        .then(
+                                            when {
+                                                completed -> Modifier.background(Color(0xFFFFC32D), CircleShape)
+                                                isSelected -> Modifier.background(Color(0xFF358DE5), CircleShape)
+                                                isToday -> Modifier.border(2.dp, Color(0xFF358DE5), CircleShape)
+                                                else -> Modifier
+                                            }
+                                        )
+                                        .then(
+                                            if (!completed && !isFuture) Modifier.clickable { selectedDate = month.atDay(day) }
+                                            else Modifier
+                                        ),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         if (completed) "★" else "$day",
                                         color = when {
                                             completed -> Color(0xFFFF8A00)
-                                            isToday -> Color.White
+                                            isSelected -> Color.White
+                                            isToday -> Color(0xFF358DE5)
                                             isFuture -> Color(0xFFC4C7CE)
                                             else -> Color(0xFF747B8A)
                                         },
@@ -864,12 +937,13 @@ private fun DailyChallengeScreen(
             }
             Spacer(Modifier.height(18.dp))
             Button(
-                onClick = { onPlay(ChallengeCodes.daily(today)) },
+                onClick = { selectedDate?.let { onPlay(ChallengeCodes.daily(it)) } },
+                enabled = selectedDate != null,
                 modifier = Modifier.fillMaxWidth().height(58.dp),
                 shape = RoundedCornerShape(29.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF358DE5))
             ) {
-                Text(if (today.dayOfMonth in completedDays) "Gioca ancora" else "Gioca", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(if (selectedDate == null) "Sfide completate" else "Gioca", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(10.dp))
         }
@@ -1421,6 +1495,7 @@ fun SudokuScreen(
     onChangeLevel: () -> Unit
 ) {
     statsVersion
+    BackHandler(onBack = onBack)
 
     // timer: riparte a ogni nuova partita, si ferma automaticamente a vittoria
     LaunchedEffect(game.generation, game.won) {
