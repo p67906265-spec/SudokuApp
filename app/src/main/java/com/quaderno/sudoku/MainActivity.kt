@@ -78,7 +78,7 @@ object SudokuEngine {
 
     private fun boxOf(r: Int, c: Int) = (r / 3) * 3 + (c / 3)
 
-    private fun generateFullGrid(): IntArray {
+    private fun generateFullGrid(random: Random): IntArray {
         val grid = IntArray(81)
         val rowMask = IntArray(9)
         val colMask = IntArray(9)
@@ -90,7 +90,7 @@ object SudokuEngine {
             val c = pos % 9
             val b = boxOf(r, c)
             val used = rowMask[r] or colMask[c] or boxMask[b]
-            val nums = (1..9).shuffled(Random)
+            val nums = (1..9).shuffled(random)
             for (n in nums) {
                 val bit = 1 shl n
                 if (used and bit != 0) continue
@@ -160,11 +160,12 @@ object SudokuEngine {
         return count
     }
 
-    fun generatePuzzle(difficulty: Difficulty): Puzzle {
-        val full = generateFullGrid()
+    fun generatePuzzle(difficulty: Difficulty, seed: Int = Random.nextInt()): Puzzle {
+        val random = Random(seed)
+        val full = generateFullGrid(random)
         val puzzle = full.copyOf()
         val target = difficulty.clues
-        val order = (0 until 81).shuffled(Random)
+        val order = (0 until 81).shuffled(random)
         var clues = 81
         for (pos in order) {
             if (clues <= target) break
@@ -178,6 +179,34 @@ object SudokuEngine {
     }
 }
 
+private object ChallengeCodes {
+    private const val CHARS = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
+    private val prefixes = mapOf(
+        SudokuEngine.Difficulty.FACILE to "FA",
+        SudokuEngine.Difficulty.MEDIO to "ME",
+        SudokuEngine.Difficulty.DIFFICILE to "DI",
+        SudokuEngine.Difficulty.ESPERTO to "ES",
+        SudokuEngine.Difficulty.MASTER to "MA",
+        SudokuEngine.Difficulty.ESTREMO to "EX"
+    )
+
+    fun create(level: SudokuEngine.Difficulty): String {
+        val body = buildString { repeat(6) { append(CHARS.random()) } }
+        return "${prefixes.getValue(level)}-$body"
+    }
+
+    fun normalize(value: String) = value.trim().uppercase().replace(" ", "")
+
+    fun difficulty(code: String): SudokuEngine.Difficulty? {
+        val normalized = normalize(code)
+        val parts = normalized.split('-')
+        if (parts.size != 2 || parts[1].length != 6 || parts[1].any { it !in CHARS }) return null
+        return prefixes.entries.firstOrNull { it.value == normalized.substringBefore('-') }?.key
+    }
+
+    fun seed(code: String): Int = normalize(code).hashCode()
+}
+
 // ---------------------------------------------------------------------------
 // Stato di partita
 // ---------------------------------------------------------------------------
@@ -185,6 +214,7 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
     var difficulty by mutableStateOf(difficulty)
     var given: BooleanArray = BooleanArray(81)
     var solution: IntArray = IntArray(81)
+    var gameCode by mutableStateOf("")
     private var startingBoard: IntArray = IntArray(81)
     val board: SnapshotStateList<Int> = mutableStateListOf()
     val notes: List<SnapshotStateList<Int>> = List(81) { mutableStateListOf() }
@@ -203,9 +233,12 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
 
     init { reset(difficulty) }
 
-    fun reset(newDifficulty: SudokuEngine.Difficulty = difficulty) {
-        difficulty = newDifficulty
-        val puzzle = SudokuEngine.generatePuzzle(newDifficulty)
+    fun reset(newDifficulty: SudokuEngine.Difficulty = difficulty, requestedCode: String? = null) {
+        val code = requestedCode?.let(ChallengeCodes::normalize) ?: ChallengeCodes.create(newDifficulty)
+        val codeDifficulty = ChallengeCodes.difficulty(code) ?: newDifficulty
+        difficulty = codeDifficulty
+        gameCode = code
+        val puzzle = SudokuEngine.generatePuzzle(codeDifficulty, ChallengeCodes.seed(code))
         given = BooleanArray(81) { puzzle.given[it] != 0 }
         solution = puzzle.solution
         startingBoard = puzzle.given.copyOf()
@@ -370,6 +403,15 @@ private data class LevelStats(
     val totalSeconds: Long, val bestSeconds: Int, val bestScore: Int, val flawless: Int
 )
 
+private data class ChallengeResult(
+    val code: String,
+    val seconds: Int,
+    val score: Int,
+    val mistakes: Int,
+    val attempts: Int,
+    val completedAt: Long
+)
+
 private class StatsStore(context: Context) {
     private val prefs = context.getSharedPreferences("sudoku_stats", Context.MODE_PRIVATE)
     private var activeLevel: SudokuEngine.Difficulty? = null
@@ -410,9 +452,45 @@ private class StatsStore(context: Context) {
             .putInt(key(level, "bestSeconds"), bestTime)
             .putInt(key(level, "bestScore"), maxOf(old.bestScore, game.score(true)))
             .putInt(key(level, "flawless"), old.flawless + if (game.mistakes == 0) 1 else 0).apply()
+        saveChallengeResult(game)
         activeLevel = null
         updateStreak(true)
     }
+
+    private fun challengeKey(code: String, field: String) = "challenge_${ChallengeCodes.normalize(code)}_$field"
+
+    private fun saveChallengeResult(game: GameState) {
+        val code = ChallengeCodes.normalize(game.gameCode)
+        val previous = challengeResult(code)
+        val codes = prefs.getStringSet("challenge_codes", emptySet()).orEmpty().toMutableSet()
+        codes.add(code)
+        prefs.edit()
+            .putStringSet("challenge_codes", codes)
+            .putInt(challengeKey(code, "seconds"), if (previous == null) game.seconds else minOf(previous.seconds, game.seconds))
+            .putInt(challengeKey(code, "score"), maxOf(previous?.score ?: 0, game.score(true)))
+            .putInt(challengeKey(code, "mistakes"), if (previous == null || game.seconds <= previous.seconds) game.mistakes else previous.mistakes)
+            .putInt(challengeKey(code, "attempts"), (previous?.attempts ?: 0) + 1)
+            .putLong(challengeKey(code, "completedAt"), System.currentTimeMillis())
+            .apply()
+    }
+
+    fun challengeResult(code: String): ChallengeResult? {
+        val normalized = ChallengeCodes.normalize(code)
+        if (!prefs.getStringSet("challenge_codes", emptySet()).orEmpty().contains(normalized)) return null
+        return ChallengeResult(
+            normalized,
+            prefs.getInt(challengeKey(normalized, "seconds"), 0),
+            prefs.getInt(challengeKey(normalized, "score"), 0),
+            prefs.getInt(challengeKey(normalized, "mistakes"), 0),
+            prefs.getInt(challengeKey(normalized, "attempts"), 1),
+            prefs.getLong(challengeKey(normalized, "completedAt"), 0L)
+        )
+    }
+
+    fun challengeHistory(): List<ChallengeResult> =
+        prefs.getStringSet("challenge_codes", emptySet()).orEmpty()
+            .mapNotNull(::challengeResult)
+            .sortedByDescending { it.completedAt }
 
     private fun updateStreak(won: Boolean) {
         val current = if (won) prefs.getInt("currentStreak", 0) + 1 else 0
@@ -440,7 +518,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class AppScreen { HOME, GAME, SETTINGS, TUTORIAL, STATISTICS }
+private enum class AppScreen { HOME, GAME, SETTINGS, TUTORIAL, STATISTICS, CHALLENGES }
 
 @Composable
 private fun SudokuAppRoot() {
@@ -470,7 +548,8 @@ private fun SudokuAppRoot() {
             onPlay = { showLevels = true },
             onSettings = { screen = AppScreen.SETTINGS },
             onTutorial = { screen = AppScreen.TUTORIAL },
-            onStatistics = { screen = AppScreen.STATISTICS }
+            onStatistics = { screen = AppScreen.STATISTICS },
+            onChallenges = { screen = AppScreen.CHALLENGES }
         )
         AppScreen.GAME -> SudokuScreen(
             game,
@@ -490,6 +569,17 @@ private fun SudokuAppRoot() {
         AppScreen.SETTINGS -> SettingsScreen { screen = AppScreen.HOME }
         AppScreen.TUTORIAL -> TutorialScreen { screen = AppScreen.HOME }
         AppScreen.STATISTICS -> StatisticsScreen(stats, statsVersion) { screen = AppScreen.HOME }
+        AppScreen.CHALLENGES -> ChallengeScreen(
+            stats = stats,
+            statsVersion = statsVersion,
+            onBack = { screen = AppScreen.HOME },
+            onPlayCode = { code ->
+                ChallengeCodes.difficulty(code)?.let { level ->
+                    game.reset(level, code)
+                    screen = AppScreen.GAME
+                }
+            }
+        )
     }
 
     if (showLevels) {
@@ -511,7 +601,8 @@ private fun HomeScreen(
     onPlay: () -> Unit,
     onSettings: () -> Unit,
     onTutorial: () -> Unit,
-    onStatistics: () -> Unit
+    onStatistics: () -> Unit,
+    onChallenges: () -> Unit
 ) {
     Column(
         Modifier.fillMaxSize().background(Color(0xFFF3F6FB)).padding(24.dp),
@@ -541,6 +632,8 @@ private fun HomeScreen(
 
         Spacer(Modifier.height(22.dp))
         HomeMenuItem("★", "Statistiche", onStatistics)
+        Spacer(Modifier.height(12.dp))
+        HomeMenuItem("#", "Sfide con codice", onChallenges)
         Spacer(Modifier.height(12.dp))
         HomeMenuItem("⚙", "Impostazioni", onSettings)
         Spacer(Modifier.height(12.dp))
@@ -632,6 +725,109 @@ private fun SimplePageHeader(title: String, onBack: () -> Unit) {
         Text(title, color = Color(0xFF17243A), fontSize = 23.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
         Spacer(Modifier.width(28.dp))
+    }
+}
+
+@Composable
+private fun ChallengeScreen(
+    stats: StatsStore,
+    statsVersion: Int,
+    onBack: () -> Unit,
+    onPlayCode: (String) -> Unit
+) {
+    statsVersion
+    var code by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf("") }
+    var previousResult by remember { mutableStateOf<ChallengeResult?>(null) }
+    val history = stats.challengeHistory()
+
+    fun requestPlay(rawCode: String) {
+        val normalized = ChallengeCodes.normalize(rawCode)
+        if (ChallengeCodes.difficulty(normalized) == null) {
+            error = "Codice non valido"
+            return
+        }
+        error = ""
+        val result = stats.challengeResult(normalized)
+        if (result != null) previousResult = result else onPlayCode(normalized)
+    }
+
+    Column(Modifier.fillMaxSize().background(Color(0xFFF0F3F9))) {
+        SimplePageHeader("Sfide con codice", onBack)
+        Column(
+            Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(22.dp)).padding(20.dp)) {
+                Text("Gioca lo stesso schema", color = Color(0xFF25344B), fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                Text("Inserisci il codice ricevuto da un amico.", color = AppText, fontSize = 14.sp)
+                Spacer(Modifier.height(14.dp))
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = { code = it.uppercase().take(9); error = "" },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Codice schema") },
+                    placeholder = { Text("Esempio: ME-7K4P9X") },
+                    isError = error.isNotEmpty()
+                )
+                if (error.isNotEmpty()) Text(error, color = Color(0xFFD14A4A), fontSize = 13.sp)
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = { requestPlay(code) },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
+                ) { Text("GIOCA CON QUESTO CODICE", fontWeight = FontWeight.Bold) }
+            }
+
+            Text("Schemi completati", color = Color(0xFF25344B), fontSize = 21.sp, fontWeight = FontWeight.Bold)
+            if (history.isEmpty()) {
+                Text("Non hai ancora completato schemi con un codice.", color = AppText, fontSize = 14.sp,
+                    modifier = Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).padding(18.dp))
+            } else {
+                history.forEach { result ->
+                    Row(
+                        Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp))
+                            .clickable { previousResult = result }.padding(17.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(Modifier.size(44.dp).background(AppBlueSoft, CircleShape), contentAlignment = Alignment.Center) {
+                            Text("#", color = AppBlue, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(result.code, color = Color(0xFF25344B), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Text("Miglior tempo ${formatTime(result.seconds)}  •  ${result.score} punti", color = AppText, fontSize = 13.sp)
+                        }
+                        Text("›", color = AppText, fontSize = 30.sp)
+                    }
+                }
+            }
+        }
+    }
+
+    previousResult?.let { result ->
+        AlertDialog(
+            onDismissRequest = { previousResult = null },
+            shape = RoundedCornerShape(26.dp),
+            containerColor = Color.White,
+            title = { Text("Schema già completato", color = Color(0xFF25344B), fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(result.code, color = AppBlue, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Questo schema è stato finito in ${formatTime(result.seconds)}.", color = AppText, fontSize = 16.sp)
+                    Text("Miglior punteggio: ${result.score}  •  Tentativi: ${result.attempts}", color = AppText, fontSize = 14.sp)
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    previousResult = null
+                    onPlayCode(result.code)
+                }, colors = ButtonDefaults.buttonColors(containerColor = AppBlue)) { Text("Rigioca") }
+            },
+            dismissButton = { TextButton(onClick = { previousResult = null }) { Text("Annulla") } }
+        )
     }
 }
 
@@ -871,7 +1067,14 @@ fun SudokuScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             ModernTopBar(game, onBack, onSettings)
-            Spacer(Modifier.height(10.dp))
+            Text(
+                "CODICE  ${game.gameCode}",
+                color = AppBlue,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.background(AppBlueSoft, RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 5.dp)
+            )
+            Spacer(Modifier.height(6.dp))
             ModernStats(game)
             Spacer(Modifier.height(8.dp))
             Board(game)
@@ -1291,6 +1494,7 @@ private fun WinOverlay(game: GameState, onMenu: () -> Unit, onChangeLevel: () ->
             Text("✓", color = AppBlue, fontSize = 68.sp)
             Text("Sudoku completato!", color = Color(0xFF263A58), fontSize = 25.sp, fontWeight = FontWeight.Bold)
             Text("Livello ${game.difficulty.label.lowercase().replaceFirstChar { it.uppercase() }}", color = AppText, fontSize = 17.sp)
+            Text("Codice ${game.gameCode}", color = AppText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Text("Punteggio ${game.score(true)}", color = AppBlue, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(24.dp))
             Button(
