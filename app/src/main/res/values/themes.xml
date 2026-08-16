@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.Sudoku" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#EDE7D9</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowBackground">#EDE7D9</item>
+    </style>
+</resources>

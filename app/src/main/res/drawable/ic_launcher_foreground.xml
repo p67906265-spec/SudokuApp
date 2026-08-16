@@ -1,0 +1,31 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- griglia 3x3 di riquadri, spessore diverso per le linee dei box -->
+    <path
+        android:pathData="M28,24 L80,24 L80,84 L28,84 Z"
+        android:strokeColor="#23241F"
+        android:strokeWidth="4"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M45.3,24 L45.3,84 M62.6,24 L62.6,84"
+        android:strokeColor="#23241F"
+        android:strokeWidth="1.6"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M28,44 L80,44 M28,64 L80,64"
+        android:strokeColor="#23241F"
+        android:strokeWidth="1.6"
+        android:fillColor="#00000000" />
+
+    <!-- un numero scritto "a matita" nell'angolo -->
+    <path
+        android:pathData="M50,50 L58,58 M58,50 L50,58"
+        android:strokeColor="#A64B34"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+</vector>
