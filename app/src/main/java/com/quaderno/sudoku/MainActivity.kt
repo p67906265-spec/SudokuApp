@@ -621,6 +621,9 @@ private fun SudokuAppRoot() {
     var pendingDailyDate by remember { mutableStateOf<LocalDate?>(null) }
     var dailyGameDate by remember { mutableStateOf<LocalDate?>(null) }
     var dailySelectFirstAvailable by remember { mutableStateOf(false) }
+    var showDailyResultDialog by remember { mutableStateOf(false) }
+    var dailyResultSeconds by remember { mutableStateOf(0) }
+    var dailyResultScore by remember { mutableStateOf(0) }
     val game = remember { GameState(SudokuEngine.Difficulty.MEDIO, settings) }
 
     LaunchedEffect(game.won, game.generation) {
@@ -628,9 +631,9 @@ private fun SudokuAppRoot() {
             stats.complete(game)
             statsVersion++
             if (dailyGameDate != null) {
-                dailyGameDate = null
-                dailySelectFirstAvailable = true
-                screen = AppScreen.DAILY
+                dailyResultSeconds = game.seconds
+                dailyResultScore = game.score(true)
+                showDailyResultDialog = true
             }
         }
     }
@@ -761,6 +764,52 @@ private fun SudokuAppRoot() {
                         showDailyResumeDialog = false
                     }) { Text("Annulla") }
                 }
+            }
+        )
+    }
+
+    if (showDailyResultDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showDailyResultDialog = false
+                dailyGameDate = null
+                dailySelectFirstAvailable = true
+                screen = AppScreen.DAILY
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(26.dp),
+            title = {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("✓", color = AppBlue, fontSize = 52.sp, fontWeight = FontWeight.Bold)
+                    Text("Sfida completata!", color = Color(0xFF263A58), fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Tempo", color = AppText, fontSize = 15.sp)
+                            Text(formatTime(dailyResultSeconds), color = Color(0xFF263A58), fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Punteggio", color = AppText, fontSize = 15.sp)
+                            Text("$dailyResultScore", color = AppBlue, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDailyResultDialog = false
+                        dailyGameDate = null
+                        dailySelectFirstAvailable = true
+                        screen = AppScreen.DAILY
+                    },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(26.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
+                ) { Text("Torna alle sfide", fontSize = 17.sp, fontWeight = FontWeight.Bold) }
             }
         )
     }
