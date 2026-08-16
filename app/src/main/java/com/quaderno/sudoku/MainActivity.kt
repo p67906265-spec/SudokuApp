@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -34,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import java.time.LocalDate
+import java.time.YearMonth
 import kotlin.random.Random
 
 // Palette moderna della schermata di riferimento
@@ -189,6 +192,12 @@ private object ChallengeCodes {
     }
 
     fun seed(code: String): Int = normalize(code).hashCode()
+
+    fun daily(date: LocalDate): String {
+        val random = Random(date.toEpochDay().toInt())
+        val body = buildString { repeat(6) { append(CHARS[random.nextInt(CHARS.length)]) } }
+        return "ME-$body"
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -585,7 +594,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class AppScreen { HOME, GAME, SETTINGS, TUTORIAL, STATISTICS, CHALLENGES }
+private enum class AppScreen { HOME, GAME, SETTINGS, TUTORIAL, STATISTICS, CHALLENGES, DAILY }
 
 @Composable
 private fun SudokuAppRoot() {
@@ -614,6 +623,7 @@ private fun SudokuAppRoot() {
     when (screen) {
         AppScreen.HOME -> HomeScreen(
             onPlay = { showLevels = true },
+            onDaily = { screen = AppScreen.DAILY },
             onSettings = { screen = AppScreen.SETTINGS },
             onTutorial = { screen = AppScreen.TUTORIAL },
             onStatistics = { screen = AppScreen.STATISTICS },
@@ -648,6 +658,15 @@ private fun SudokuAppRoot() {
                 }
             }
         )
+        AppScreen.DAILY -> DailyChallengeScreen(
+            stats = stats,
+            statsVersion = statsVersion,
+            onBack = { screen = AppScreen.HOME },
+            onPlay = { code ->
+                game.reset(SudokuEngine.Difficulty.MEDIO, code)
+                screen = AppScreen.GAME
+            }
+        )
     }
 
     if (showLevels) {
@@ -667,6 +686,7 @@ private fun SudokuAppRoot() {
 @Composable
 private fun HomeScreen(
     onPlay: () -> Unit,
+    onDaily: () -> Unit,
     onSettings: () -> Unit,
     onTutorial: () -> Unit,
     onStatistics: () -> Unit,
@@ -702,6 +722,7 @@ private fun HomeScreen(
         ) { Text("G I O C A", fontSize = 19.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold) }
 
         Spacer(Modifier.height(34.dp))
+        HomeMenuItem("♛", "Sfida del giorno", onDaily)
         HomeMenuItem("★", "Statistiche", onStatistics)
         HomeMenuItem("#", "Sfide con codice", onChallenges)
         HomeMenuItem("⚙", "Impostazioni", onSettings)
@@ -752,6 +773,107 @@ private fun Modifier.homeDashedBottom(): Modifier = drawBehind {
         strokeWidth = 1.dp.toPx(),
         pathEffect = PathEffect.dashPathEffect(floatArrayOf(7f, 7f))
     )
+}
+
+@Composable
+private fun DailyChallengeScreen(
+    stats: StatsStore,
+    statsVersion: Int,
+    onBack: () -> Unit,
+    onPlay: (String) -> Unit
+) {
+    statsVersion
+    val today = LocalDate.now()
+    val month = YearMonth.from(today)
+    val monthNames = listOf(
+        "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+        "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
+    )
+    val completedDays = (1..month.lengthOfMonth()).filter { day ->
+        stats.challengeResult(ChallengeCodes.daily(month.atDay(day))) != null
+    }.toSet()
+    val firstOffset = month.atDay(1).dayOfWeek.value - 1
+    val calendarCells = firstOffset + month.lengthOfMonth()
+    val rows = (calendarCells + 6) / 7
+
+    Column(Modifier.fillMaxSize().background(Color.White)) {
+        Box(
+            Modifier.fillMaxWidth().height(235.dp)
+                .background(Brush.verticalGradient(listOf(Color(0xFF2F83DC), Color(0xFF46B7EB))))
+        ) {
+            Text("‹", color = Color.White, fontSize = 50.sp, modifier = Modifier.align(Alignment.TopStart).padding(start = 22.dp, top = 20.dp).clickable { onBack() })
+            Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Sfida del giorno", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(14.dp))
+                Text("🏆", fontSize = 76.sp)
+                Text("${today.dayOfMonth} ${monthNames[today.monthValue - 1]} ${today.year}", color = Color.White.copy(alpha = 0.9f), fontSize = 15.sp)
+            }
+        }
+
+        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("${monthNames[month.monthValue - 1]} ${month.year}", color = Color(0xFF20242D), fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Text("★", color = Color(0xFFFFB51B), fontSize = 24.sp)
+                Spacer(Modifier.width(6.dp))
+                Text("${completedDays.size}/${month.lengthOfMonth()}", color = Color(0xFF20242D), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(18.dp))
+            Row(Modifier.fillMaxWidth()) {
+                listOf("L", "M", "M", "G", "V", "S", "D").forEach { label ->
+                    Text(label, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = Color(0xFF9AA0AC), fontSize = 14.sp)
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            repeat(rows) { row ->
+                Row(Modifier.fillMaxWidth().height(42.dp)) {
+                    repeat(7) { col ->
+                        val cell = row * 7 + col
+                        val day = cell - firstOffset + 1
+                        Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                            if (day in 1..month.lengthOfMonth()) {
+                                val completed = day in completedDays
+                                val isToday = day == today.dayOfMonth
+                                val isFuture = day > today.dayOfMonth
+                                Box(
+                                    Modifier.size(39.dp).then(
+                                        when {
+                                            completed -> Modifier.background(Color(0xFFFFC32D), CircleShape)
+                                            isToday -> Modifier.background(Color(0xFF358DE5), CircleShape)
+                                            else -> Modifier
+                                        }
+                                    ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        if (completed) "★" else "$day",
+                                        color = when {
+                                            completed -> Color(0xFFFF8A00)
+                                            isToday -> Color.White
+                                            isFuture -> Color(0xFFC4C7CE)
+                                            else -> Color(0xFF747B8A)
+                                        },
+                                        fontSize = if (completed) 23.sp else 17.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+            Button(
+                onClick = { onPlay(ChallengeCodes.daily(today)) },
+                modifier = Modifier.fillMaxWidth().height(58.dp),
+                shape = RoundedCornerShape(29.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF358DE5))
+            ) {
+                Text(if (today.dayOfMonth in completedDays) "Gioca ancora" else "Gioca", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(10.dp))
+        }
+    }
 }
 
 @Composable
@@ -1432,7 +1554,7 @@ private fun SudokuCell(game: GameState, pos: Int) {
 
     val bg = when {
         isError && isSelected -> Color(0xFFFFB9B9)
-        isCelebrating -> Color(0xFFFFD86B)
+        isCelebrating -> Color(0xFFAEE8D2)
         isSelected -> Color(0xFF79B8F3)
         isError -> Color(0xFFFFE1E1)
         isSameNum -> Color(0xFFD8CCF4)
