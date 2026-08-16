@@ -617,7 +617,8 @@ private fun SudokuAppRoot() {
     var statsVersion by remember { mutableStateOf(0) }
     var screen by remember { mutableStateOf(AppScreen.HOME) }
     var showLevels by remember { mutableStateOf(false) }
-    var showDailyExitDialog by remember { mutableStateOf(false) }
+    var showDailyResumeDialog by remember { mutableStateOf(false) }
+    var pendingDailyDate by remember { mutableStateOf<LocalDate?>(null) }
     var dailyGameDate by remember { mutableStateOf<LocalDate?>(null) }
     val game = remember { GameState(SudokuEngine.Difficulty.MEDIO, settings) }
 
@@ -653,7 +654,9 @@ private fun SudokuAppRoot() {
             statsVersion = statsVersion,
             onBack = {
                 if (dailyGameDate != null && !game.won) {
-                    showDailyExitDialog = true
+                    // La sfida resta in memoria: il pannello verrà mostrato
+                    // soltanto quando l'utente selezionerà di nuovo quel giorno.
+                    screen = AppScreen.DAILY
                 } else {
                     if (!game.won) stats.abandonActive()
                     statsVersion++
@@ -686,12 +689,22 @@ private fun SudokuAppRoot() {
             statsVersion = statsVersion,
             onBack = { screen = AppScreen.HOME },
             onPlay = { code ->
-                dailyGameDate = LocalDate.now().let { today ->
+                val selectedDailyDate = LocalDate.now().let { today ->
                     (1..today.dayOfMonth).map { YearMonth.from(today).atDay(it) }
                         .firstOrNull { ChallengeCodes.daily(it) == code }
                 }
-                game.reset(SudokuEngine.Difficulty.MEDIO, code)
-                screen = AppScreen.GAME
+                if (selectedDailyDate != null &&
+                    dailyGameDate == selectedDailyDate &&
+                    game.gameCode == ChallengeCodes.normalize(code) &&
+                    !game.won
+                ) {
+                    pendingDailyDate = selectedDailyDate
+                    showDailyResumeDialog = true
+                } else {
+                    dailyGameDate = selectedDailyDate
+                    game.reset(SudokuEngine.Difficulty.MEDIO, code)
+                    screen = AppScreen.GAME
+                }
             }
         )
     }
@@ -709,26 +722,36 @@ private fun SudokuAppRoot() {
         )
     }
 
-    if (showDailyExitDialog) {
+    if (showDailyResumeDialog) {
         AlertDialog(
-            onDismissRequest = { showDailyExitDialog = false },
+            onDismissRequest = {
+                pendingDailyDate = null
+                showDailyResumeDialog = false
+            },
             title = { Text("Sfida del giorno", fontWeight = FontWeight.Bold) },
             text = { Text("Cosa vuoi fare con la partita in corso?") },
             confirmButton = {
-                TextButton(onClick = { showDailyExitDialog = false }) { Text("Continua la partita") }
+                TextButton(onClick = {
+                    pendingDailyDate = null
+                    showDailyResumeDialog = false
+                    screen = AppScreen.GAME
+                }) { Text("Continua la partita") }
             },
             dismissButton = {
                 Column(horizontalAlignment = Alignment.End) {
                     TextButton(onClick = {
-                        game.retry()
-                        showDailyExitDialog = false
+                        val date = pendingDailyDate
+                        if (date != null) {
+                            dailyGameDate = date
+                            game.reset(SudokuEngine.Difficulty.MEDIO, ChallengeCodes.daily(date))
+                            screen = AppScreen.GAME
+                        }
+                        pendingDailyDate = null
+                        showDailyResumeDialog = false
                     }) { Text("Ricomincia") }
                     TextButton(onClick = {
-                        stats.abandonActive()
-                        statsVersion++
-                        dailyGameDate = null
-                        showDailyExitDialog = false
-                        screen = AppScreen.DAILY
+                        pendingDailyDate = null
+                        showDailyResumeDialog = false
                     }) { Text("Annulla") }
                 }
             }
