@@ -44,6 +44,13 @@ private val RustSoft = Color(0xFFF1DCD3)
 private val GoldSoft = Color(0xFFF0E3C4)
 private val Gold = Color(0xFFB7862C)
 
+// Palette moderna della schermata di riferimento
+private val AppBlue = Color(0xFF2F63AD)
+private val AppBlueSoft = Color(0xFFE3EDF8)
+private val GridLine = Color(0xFF3E424B)
+private val CellLine = Color(0xFFC6CDD6)
+private val AppText = Color(0xFF727887)
+
 private val Display = FontFamily.Serif
 private val Mono = FontFamily.Monospace
 
@@ -178,6 +185,7 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
     var mistakes by mutableStateOf(0)
     var seconds by mutableStateOf(0)
     var won by mutableStateOf(false)
+    var paused by mutableStateOf(false)
     var generation by mutableStateOf(0)
     private val history = ArrayDeque<HistoryEntry>()
 
@@ -197,6 +205,7 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
         mistakes = 0
         seconds = 0
         won = false
+        paused = false
         generation++
         history.clear()
     }
@@ -297,40 +306,78 @@ fun SudokuScreen() {
     LaunchedEffect(game.generation, game.won) {
         while (isActive && !game.won) {
             delay(1000)
-            game.seconds++
+            if (!game.paused) game.seconds++
         }
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Paper)
-            .padding(horizontal = 16.dp, vertical = 20.dp)
+            .background(Color.White)
     ) {
-        Header()
-        Spacer(Modifier.height(14.dp))
-        DifficultyBar(game)
-        Spacer(Modifier.height(14.dp))
-        StatRow(game)
-        Spacer(Modifier.height(10.dp))
-        Board(game)
-        if (game.won) {
-            Spacer(Modifier.height(14.dp))
-            WinBanner(game)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 6.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            ModernTopBar(game)
+            Spacer(Modifier.height(10.dp))
+            ModernStats(game)
+            Spacer(Modifier.height(8.dp))
+            Board(game)
+            Spacer(Modifier.height(22.dp))
+            ModernActions(game)
+            Spacer(Modifier.height(22.dp))
+            NumberPad(game)
         }
-        Spacer(Modifier.height(16.dp))
-        ActionRow(game)
-        Spacer(Modifier.height(10.dp))
-        NumberPad(game)
-        Spacer(Modifier.height(14.dp))
-        Text(
-            "Tocca una casella, poi un numero. Le note segnano le ipotesi a matita.",
-            fontFamily = Mono,
-            fontSize = 10.sp,
-            color = InkSoft,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
+
+        if (game.paused) PauseOverlay(game)
+        if (game.won) WinOverlay(game)
+    }
+}
+
+@Composable
+private fun ModernTopBar(game: GameState) {
+    val m = (game.seconds / 60).toString().padStart(2, '0')
+    val s = (game.seconds % 60).toString().padStart(2, '0')
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text("‹", color = AppBlue, fontSize = 48.sp, fontWeight = FontWeight.Light)
+        Text("$m:$s", color = Color(0xFF263A58), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            Text("⟳", color = AppBlue, fontSize = 38.sp, modifier = Modifier.clickable { game.reset() })
+            Text(if (game.paused) "▶" else "Ⅱ", color = AppBlue, fontSize = 30.sp,
+                modifier = Modifier.clickable { game.paused = !game.paused })
+            Text("⚙", color = AppBlue, fontSize = 34.sp)
+        }
+    }
+}
+
+@Composable
+private fun ModernStats(game: GameState) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+        ModernStat("Oggi", "★ 0")
+        ModernStat("Difficoltà", game.difficulty.label.lowercase().replaceFirstChar { it.uppercase() }, true) {
+            val values = SudokuEngine.Difficulty.values()
+            game.reset(values[(game.difficulty.ordinal + 1) % values.size])
+        }
+        ModernStat("Punteggio", "${(game.board.count { it != 0 } - game.given.count { it }) * 10}")
+        ModernStat("Errori", "${game.mistakes}/3")
+    }
+}
+
+@Composable
+private fun ModernStat(label: String, value: String, clickable: Boolean = false, onClick: () -> Unit = {}) {
+    Column(
+        modifier = if (clickable) Modifier.clickable { onClick() }.padding(4.dp) else Modifier.padding(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(label, color = AppText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(value, color = AppText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -417,14 +464,13 @@ private fun Board(game: GameState) {
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(1f)
-            .background(Paper2)
-            .border(2.dp, LineStrong)
-            .padding(6.dp)
+            .background(Color.White)
+            .border(2.dp, GridLine)
     ) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(9),
             userScrollEnabled = false,
-            modifier = Modifier.fillMaxSize().background(LineStrong).border(1.dp, LineStrong)
+            modifier = Modifier.fillMaxSize().background(Color.White)
         ) {
             items(81) { pos -> SudokuCell(game, pos) }
         }
@@ -450,18 +496,18 @@ private fun SudokuCell(game: GameState, pos: Int) {
     val isError = value != 0 && value != game.solution[pos]
 
     val bg = when {
-        isError && isSelected -> RustSoft
-        isSelected -> TealSoft
-        isError -> RustSoft
-        isSameNum -> GoldSoft
-        isPeer -> Paper2
-        else -> Paper
+        isError && isSelected -> Color(0xFFFFDADA)
+        isSelected -> Color(0xFFA8D9F7)
+        isError -> Color(0xFFFFE3E3)
+        isSameNum -> Color(0xFFCADFF2)
+        isPeer -> AppBlueSoft
+        else -> Color.White
     }
     val textColor = when {
-        isError -> Rust
-        given -> Ink
-        value != 0 -> Teal
-        else -> Ink
+        isError -> Color(0xFFD32F2F)
+        given -> Color.Black
+        value != 0 -> AppBlue
+        else -> Color.Black
     }
 
     Box(
@@ -470,7 +516,7 @@ private fun SudokuCell(game: GameState, pos: Int) {
             .background(bg)
             .border(
                 width = 0.5.dp,
-                color = LineStrong.copy(alpha = 0.35f)
+                color = CellLine
             )
             .then(
                 Modifier
@@ -482,9 +528,8 @@ private fun SudokuCell(game: GameState, pos: Int) {
         if (value != 0) {
             Text(
                 "$value",
-                fontFamily = Display,
                 fontWeight = if (given) FontWeight.Bold else FontWeight.SemiBold,
-                fontSize = 20.sp,
+                fontSize = 23.sp,
                 color = textColor
             )
         } else if (game.notes[pos].isNotEmpty()) {
@@ -515,7 +560,7 @@ private fun Modifier.thickEdge(right: Boolean, bottom: Boolean): Modifier {
     var m = this
     if (right) m = m.drawBehind {
         drawLine(
-            color = LineStrong,
+            color = GridLine,
             start = androidx.compose.ui.geometry.Offset(size.width, 0f),
             end = androidx.compose.ui.geometry.Offset(size.width, size.height),
             strokeWidth = 3f
@@ -523,7 +568,7 @@ private fun Modifier.thickEdge(right: Boolean, bottom: Boolean): Modifier {
     }
     if (bottom) m = m.drawBehind {
         drawLine(
-            color = LineStrong,
+            color = GridLine,
             start = androidx.compose.ui.geometry.Offset(0f, size.height),
             end = androidx.compose.ui.geometry.Offset(size.width, size.height),
             strokeWidth = 3f
@@ -563,6 +608,27 @@ private fun ActionRow(game: GameState) {
 }
 
 @Composable
+private fun ModernActions(game: GameState) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+        ModernAction("↶", "Annulla") { game.undo() }
+        ModernAction("◇", "Cancella") { game.erase() }
+        ModernAction(if (game.notesMode) "✎ ON" else "✎", "Note", game.notesMode) { game.toggleNotes() }
+        ModernAction("♧", "Suggerim.") { game.hint() }
+    }
+}
+
+@Composable
+private fun ModernAction(icon: String, label: String, active: Boolean = false, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier.width(82.dp).clickable { onClick() },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(icon, color = if (active) AppBlue else AppText, fontSize = 31.sp)
+        Text(label, color = AppText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
 private fun ActionButton(icon: String, label: String, modifier: Modifier = Modifier, active: Boolean = false, onClick: () -> Unit) {
     Column(
         modifier = modifier
@@ -580,31 +646,51 @@ private fun ActionButton(icon: String, label: String, modifier: Modifier = Modif
 
 @Composable
 private fun NumberPad(game: GameState) {
-    Row(horizontalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.fillMaxWidth()) {
+    Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
         for (n in 1..9) {
             val left = 9 - game.placedCount(n)
-            Column(
+            Box(
                 modifier = Modifier
                     .weight(1f)
-                    .border(1.5.dp, LineStrong, RoundedCornerShape(3.dp))
-                    .background(Paper, RoundedCornerShape(3.dp))
                     .then(if (left > 0) Modifier.clickable { game.input(n) } else Modifier)
                     .padding(vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                contentAlignment = Alignment.Center
             ) {
                 Text(
                     "$n",
-                    fontFamily = Display,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 18.sp,
-                    color = if (left > 0) Ink else Ink.copy(alpha = 0.25f)
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 34.sp,
+                    color = if (left > 0) AppBlue else AppBlue.copy(alpha = 0.2f)
                 )
-                Text(
-                    if (left > 0) "$left" else "✓",
-                    fontFamily = Mono,
-                    fontSize = 8.sp,
-                    color = InkSoft
-                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PauseOverlay(game: GameState) {
+    Box(
+        Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.94f)).clickable { game.paused = false },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("Ⅱ", color = AppBlue, fontSize = 64.sp)
+            Text("Partita in pausa", color = Color(0xFF263A58), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(10.dp))
+            Text("Tocca per continuare", color = AppText, fontSize = 16.sp)
+        }
+    }
+}
+
+@Composable
+private fun WinOverlay(game: GameState) {
+    Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.95f)), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("✓", color = AppBlue, fontSize = 68.sp)
+            Text("Sudoku completato!", color = Color(0xFF263A58), fontSize = 25.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = { game.reset() }, colors = ButtonDefaults.buttonColors(containerColor = AppBlue)) {
+                Text("Nuova partita")
             }
         }
     }
