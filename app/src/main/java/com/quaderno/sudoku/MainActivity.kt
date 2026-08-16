@@ -67,7 +67,9 @@ object SudokuEngine {
         FACILE("FACILE", 40),
         MEDIO("MEDIO", 33),
         DIFFICILE("DIFFICILE", 27),
-        ESPERTO("ESPERTO", 23)
+        ESPERTO("ESPERTO", 23),
+        MASTER("MASTER", 21),
+        ESTREMO("ESTREMO", 19)
     }
 
     data class Puzzle(val given: IntArray, val solution: IntArray)
@@ -339,7 +341,7 @@ private fun HomeScreen(onPlay: () -> Unit, onSettings: () -> Unit, onTutorial: (
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(Modifier.height(30.dp))
-        Text("Sudoku", color = Color(0xFF203A61), fontSize = 42.sp, fontWeight = FontWeight.Bold)
+        Text("Sudoku Free", color = Color(0xFF203A61), fontSize = 39.sp, fontWeight = FontWeight.Bold)
         Text("Allenati, rilassati, divertiti", color = AppText, fontSize = 16.sp)
         Spacer(Modifier.height(38.dp))
 
@@ -405,7 +407,9 @@ private fun DifficultyDialog(onDismiss: () -> Unit, onSelected: (SudokuEngine.Di
                         Spacer(Modifier.width(16.dp))
                         Text(level.label.lowercase().replaceFirstChar { it.uppercase() }, color = AppBlue, fontSize = 20.sp)
                     }
-                    if (index < 3) HorizontalDivider(color = Color(0xFFE5E8EC))
+                    if (index < SudokuEngine.Difficulty.values().lastIndex) {
+                        HorizontalDivider(color = Color(0xFFE5E8EC))
+                    }
                 }
             }
         },
@@ -729,14 +733,14 @@ private fun SudokuCell(game: GameState, pos: Int) {
 
 @Composable
 private fun NotesGrid(activeNotes: List<Int>) {
-    Column(Modifier.fillMaxSize().padding(2.dp)) {
+    Column(Modifier.fillMaxSize()) {
         for (row in 0..2) {
             Row(Modifier.weight(1f)) {
                 for (col in 0..2) {
                     val n = row * 3 + col + 1
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                         if (activeNotes.contains(n)) {
-                            Text("$n", fontFamily = Mono, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, color = InkSoft)
+                            Text("$n", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF51677F))
                         }
                     }
                 }
@@ -748,19 +752,21 @@ private fun NotesGrid(activeNotes: List<Int>) {
 private fun Modifier.thickEdge(right: Boolean, bottom: Boolean): Modifier {
     var m = this
     if (right) m = m.drawBehind {
+        val stroke = 3.dp.toPx()
         drawLine(
             color = GridLine,
-            start = androidx.compose.ui.geometry.Offset(size.width, 0f),
-            end = androidx.compose.ui.geometry.Offset(size.width, size.height),
-            strokeWidth = 3f
+            start = androidx.compose.ui.geometry.Offset(size.width - stroke / 2f, 0f),
+            end = androidx.compose.ui.geometry.Offset(size.width - stroke / 2f, size.height),
+            strokeWidth = stroke
         )
     }
     if (bottom) m = m.drawBehind {
+        val stroke = 3.dp.toPx()
         drawLine(
             color = GridLine,
-            start = androidx.compose.ui.geometry.Offset(0f, size.height),
-            end = androidx.compose.ui.geometry.Offset(size.width, size.height),
-            strokeWidth = 3f
+            start = androidx.compose.ui.geometry.Offset(0f, size.height - stroke / 2f),
+            end = androidx.compose.ui.geometry.Offset(size.width, size.height - stroke / 2f),
+            strokeWidth = stroke
         )
     }
     return m
