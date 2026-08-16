@@ -777,19 +777,7 @@ private fun HomeScreen(
         Text("gioca, rilassati, divertiti", color = AppBlue, fontSize = 19.sp, fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic)
         Spacer(Modifier.height(16.dp))
         HorizontalDivider(thickness = 2.dp, color = Color(0xFF2B2F38))
-        Spacer(Modifier.height(30.dp))
-
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            HomeMiniGrid()
-            Spacer(Modifier.width(18.dp))
-            Column(Modifier.weight(1f)) {
-                Text("Una griglia nuova\nti aspetta.", color = Color(0xFF242832), fontSize = 25.sp, lineHeight = 31.sp, fontFamily = FontFamily.Serif)
-                Spacer(Modifier.height(7.dp))
-                Text("Sei livelli, dal facile\nall’estremo", color = AppText, fontSize = 14.sp, lineHeight = 19.sp)
-            }
-        }
-
-        Spacer(Modifier.height(30.dp))
+        Spacer(Modifier.height(26.dp))
         Button(
             onClick = onPlay,
             modifier = Modifier.fillMaxWidth().height(62.dp).border(1.5.dp, Color(0xFF222833), RoundedCornerShape(12.dp)),
@@ -818,26 +806,6 @@ private fun HomeMenuItem(icon: String, title: String, onClick: () -> Unit) {
         Text(title, color = Color(0xFF252A34), fontSize = 22.sp, fontFamily = FontFamily.Serif)
         Spacer(Modifier.weight(1f))
         Text("→", color = Color(0xFF7D838D), fontSize = 20.sp)
-    }
-}
-
-@Composable
-private fun HomeMiniGrid() {
-    val numbers = mapOf(0 to 4, 4 to 9, 8 to 7)
-    Column(Modifier.size(122.dp).border(2.dp, Color(0xFF252A34))) {
-        repeat(3) { row ->
-            Row(Modifier.weight(1f)) {
-                repeat(3) { col ->
-                    val cell = row * 3 + col
-                    Box(
-                        Modifier.weight(1f).fillMaxHeight().border(0.5.dp, Color(0xFFB8C2CF)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        numbers[cell]?.let { Text("$it", color = Color(0xFF252A34), fontSize = 18.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold) }
-                    }
-                }
-            }
-        }
     }
 }
 

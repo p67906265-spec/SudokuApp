@@ -5,5 +5,8 @@
         <item name="android:navigationBarColor">#F7F8FC</item>
         <item name="android:windowLightNavigationBar">true</item>
         <item name="android:windowBackground">#F7F8FC</item>
+        <item name="android:windowSplashScreenBackground">#F7F8FC</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">#DCEBFA</item>
     </style>
 </resources>
