@@ -321,6 +321,20 @@ class GameState(difficulty: SudokuEngine.Difficulty) {
             if (solution[pos] != n) mistakes++
         }
         checkWin()
+        if (!won && board[pos] == n && placedCount(n) >= 9) {
+            selectNextIncompleteNumber(n)
+        }
+    }
+
+    private fun selectNextIncompleteNumber(completedNumber: Int) {
+        for (step in 1..8) {
+            val nextNumber = ((completedNumber - 1 + step) % 9) + 1
+            if (placedCount(nextNumber) < 9) {
+                val nextPosition = board.indexOfFirst { it == nextNumber }
+                if (nextPosition >= 0) selected = nextPosition
+                return
+            }
+        }
     }
 
     fun erase() {
@@ -1421,11 +1435,11 @@ private fun SudokuCell(game: GameState, pos: Int) {
     val isError = value != 0 && value != game.solution[pos]
 
     val bg = when {
-        isError && isSelected -> Color(0xFFFFDADA)
-        isSelected -> Color(0xFFA8D9F7)
-        isError -> Color(0xFFFFE3E3)
-        isSameNum -> Color(0xFFCADFF2)
-        isPeer -> AppBlueSoft
+        isError && isSelected -> Color(0xFFFFB9B9)
+        isSelected -> Color(0xFF79B8F3)
+        isError -> Color(0xFFFFE1E1)
+        isSameNum -> Color(0xFFD8CCF4)
+        isPeer -> Color(0xFFE8EEF5)
         else -> Color.White
     }
     val textColor = when {
