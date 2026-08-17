@@ -998,10 +998,10 @@ private fun DailyChallengeScreen(
     }.toSet()
     var selectedDate by remember(month, statsVersion, selectFirstAvailable) {
         mutableStateOf(
-            if (!selectFirstAvailable && today.dayOfMonth !in completedDays) {
+            if (today.dayOfMonth !in completedDays) {
                 today
             } else {
-                (1..today.dayOfMonth)
+                ((today.dayOfMonth - 1) downTo 1)
                     .firstOrNull { it !in completedDays }
                     ?.let(month::atDay)
             }
@@ -1789,8 +1789,8 @@ private fun SudokuCell(game: GameState, pos: Int) {
 
     val bg = when {
         isError && isSelected -> Color(0xFFFFB9B9)
-        isCelebrationWave -> Color(0xFF8DB8E8)
-        isCelebrationTrail -> Color(0xFFDCEAF8)
+        isCelebrationWave -> AppBlue
+        isCelebrationTrail -> Color(0xFF79B8F3)
         isSelected -> Color(0xFF79B8F3)
         isError -> Color(0xFFFFE1E1)
         isSameNum -> Color(0xFFD8CCF4)
@@ -1799,6 +1799,7 @@ private fun SudokuCell(game: GameState, pos: Int) {
     }
     val textColor = when {
         isError -> Color(0xFFD32F2F)
+        isCelebrationWave -> Color.White
         given -> Color.Black
         value != 0 -> AppBlue
         else -> Color.Black
