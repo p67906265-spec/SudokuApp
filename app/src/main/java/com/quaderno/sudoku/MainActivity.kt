@@ -27,7 +27,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -888,38 +887,78 @@ private fun HomeScreen(
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF356DB9))
         ) { Text("G I O C A", fontSize = 19.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold) }
 
-        Spacer(Modifier.height(34.dp))
-        HomeMenuItem("♛", "Sfida del giorno", onDaily)
-        HomeMenuItem("★", "Statistiche", onStatistics)
-        HomeMenuItem("#", "Sfide con codice", onChallenges)
-        HomeMenuItem("⚙", "Impostazioni", onSettings)
-        HomeMenuItem("?", "Come si gioca", onTutorial)
+        Spacer(Modifier.height(24.dp))
+        val today = LocalDate.now()
+        val monthNames = listOf(
+            "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+            "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().height(104.dp)
+                .background(Color(0xFFEDF5FD), RoundedCornerShape(16.dp))
+                .border(1.dp, Color(0xFFD1E0F0), RoundedCornerShape(16.dp))
+                .clickable { onDaily() }.padding(horizontal = 18.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("▦", color = AppBlue, fontSize = 45.sp, fontWeight = FontWeight.Light)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Sfida del giorno", color = Color(0xFF1D2738), fontSize = 22.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Text("${today.dayOfMonth} ${monthNames[today.monthValue - 1]}", color = AppBlue, fontSize = 16.sp)
+            }
+            Box(Modifier.width(1.dp).height(62.dp).background(Color(0xFFD2DDEB)))
+            Spacer(Modifier.width(14.dp))
+            Text("Apri", color = AppBlue, fontSize = 17.sp, fontFamily = FontFamily.Serif)
+            Spacer(Modifier.width(8.dp))
+            Text("→", color = AppBlue, fontSize = 28.sp)
+        }
+        Spacer(Modifier.height(20.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            HomeGridCard("▥", "Statistiche", onStatistics)
+            HomeGridCard("#", "Sfide con codice", onChallenges)
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            HomeGridCard("⚙", "Impostazioni", onSettings)
+            HomeGridCard("?", "Come si gioca", onTutorial, circledIcon = true)
+        }
         Spacer(Modifier.height(28.dp))
     }
 }
 
 @Composable
-private fun HomeMenuItem(icon: String, title: String, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().homeDashedBottom().clickable { onClick() }.padding(vertical = 19.dp, horizontal = 3.dp),
-        verticalAlignment = Alignment.CenterVertically
+private fun RowScope.HomeGridCard(
+    icon: String,
+    title: String,
+    onClick: () -> Unit,
+    circledIcon: Boolean = false
+) {
+    Column(
+        modifier = Modifier.weight(1f).height(124.dp)
+            .background(Color.White, RoundedCornerShape(14.dp))
+            .border(1.dp, Color(0xFFE1E4E9), RoundedCornerShape(14.dp))
+            .clickable { onClick() }.padding(12.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("[$icon]", color = AppBlue, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.width(13.dp))
-        Text(title, color = Color(0xFF252A34), fontSize = 22.sp, fontFamily = FontFamily.Serif)
-        Spacer(Modifier.weight(1f))
-        Text("→", color = Color(0xFF7D838D), fontSize = 20.sp)
+        Box(
+            modifier = if (circledIcon) Modifier.size(48.dp).border(1.8.dp, AppBlue, CircleShape) else Modifier.height(48.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(icon, color = AppBlue, fontSize = if (icon == "#") 42.sp else 34.sp, fontWeight = FontWeight.Normal)
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            title,
+            color = Color(0xFF202634),
+            fontSize = 16.sp,
+            fontFamily = FontFamily.Serif,
+            textAlign = TextAlign.Center,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1
+        )
     }
-}
-
-private fun Modifier.homeDashedBottom(): Modifier = drawBehind {
-    drawLine(
-        color = Color(0xFFD1D6DE),
-        start = androidx.compose.ui.geometry.Offset(0f, size.height),
-        end = androidx.compose.ui.geometry.Offset(size.width, size.height),
-        strokeWidth = 1.dp.toPx(),
-        pathEffect = PathEffect.dashPathEffect(floatArrayOf(7f, 7f))
-    )
 }
 
 @Composable
