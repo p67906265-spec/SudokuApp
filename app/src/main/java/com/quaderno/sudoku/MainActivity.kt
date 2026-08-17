@@ -235,6 +235,8 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
     var generation by mutableStateOf(0)
     val celebrationCells: SnapshotStateList<Int> = mutableStateListOf()
     var celebrationId by mutableStateOf(0)
+    var celebrationOrigin by mutableStateOf(-1)
+    var celebrationStep by mutableStateOf(-1)
     private val history = ArrayDeque<HistoryEntry>()
 
     private data class HistoryEntry(val pos: Int, val value: Int, val notes: List<Int>)
@@ -261,6 +263,8 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
         won = false
         paused = false
         celebrationCells.clear()
+        celebrationOrigin = -1
+        celebrationStep = -1
         generation++
         history.clear()
     }
@@ -277,6 +281,8 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
         won = false
         paused = false
         celebrationCells.clear()
+        celebrationOrigin = -1
+        celebrationStep = -1
         generation++
         history.clear()
     }
@@ -335,7 +341,7 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
             if (solution[pos] != n) mistakes++
         }
         checkWin()
-        showCompletedArea(row, box, rowWasComplete, boxWasComplete)
+        showCompletedArea(pos, row, box, rowWasComplete, boxWasComplete)
         if (!won && board[pos] == n && placedCount(n) >= 9) {
             selectNextIncompleteNumber(n)
         }
@@ -355,7 +361,7 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
         }
     }
 
-    private fun showCompletedArea(row: Int, box: Int, rowWasComplete: Boolean, boxWasComplete: Boolean) {
+    private fun showCompletedArea(origin: Int, row: Int, box: Int, rowWasComplete: Boolean, boxWasComplete: Boolean) {
         val cells = linkedSetOf<Int>()
         if (!rowWasComplete && isRowComplete(row)) {
             (0..8).forEach { col -> cells += row * 9 + col }
@@ -368,12 +374,31 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
         if (cells.isNotEmpty() && settings.animations) {
             celebrationCells.clear()
             celebrationCells.addAll(cells)
+            celebrationOrigin = origin
+            celebrationStep = 0
             celebrationId++
         }
     }
 
+    fun celebrationDistance(pos: Int): Int {
+        if (celebrationOrigin !in 0 until 81 || pos !in celebrationCells) return -1
+        return kotlin.math.abs(pos / 9 - celebrationOrigin / 9) +
+            kotlin.math.abs(pos % 9 - celebrationOrigin % 9)
+    }
+
+    fun celebrationMaxDistance(): Int =
+        celebrationCells.maxOfOrNull(::celebrationDistance)?.coerceAtLeast(0) ?: 0
+
+    fun advanceCelebration(id: Int, step: Int) {
+        if (celebrationId == id) celebrationStep = step
+    }
+
     fun clearCelebration(id: Int) {
-        if (celebrationId == id) celebrationCells.clear()
+        if (celebrationId == id) {
+            celebrationCells.clear()
+            celebrationOrigin = -1
+            celebrationStep = -1
+        }
     }
 
     private fun selectNextIncompleteNumber(completedNumber: Int) {
@@ -1560,7 +1585,12 @@ fun SudokuScreen(
     LaunchedEffect(game.celebrationId) {
         val id = game.celebrationId
         if (id > 0) {
-            delay(950)
+            val maxDistance = game.celebrationMaxDistance()
+            for (step in 0..maxDistance) {
+                game.advanceCelebration(id, step)
+                delay(85)
+            }
+            delay(280)
             game.clearCelebration(id)
         }
     }
@@ -1677,11 +1707,14 @@ private fun SudokuCell(game: GameState, pos: Int) {
     val isPeer = selPos != -1 && pos != selPos && (r == selRow || c == selCol || b == selBox)
     val isSameNum = selVal != 0 && value == selVal && pos != selPos
     val isError = value != 0 && value != game.solution[pos]
-    val isCelebrating = pos in game.celebrationCells
+    val celebrationDistance = game.celebrationDistance(pos)
+    val isCelebrationWave = celebrationDistance >= 0 && celebrationDistance == game.celebrationStep
+    val isCelebrationTrail = celebrationDistance in 0 until game.celebrationStep
 
     val bg = when {
         isError && isSelected -> Color(0xFFFFB9B9)
-        isCelebrating -> Color(0xFFAEE8D2)
+        isCelebrationWave -> Color(0xFF9EDFCB)
+        isCelebrationTrail -> Color(0xFFD8F1EA)
         isSelected -> Color(0xFF79B8F3)
         isError -> Color(0xFFFFE1E1)
         isSameNum -> Color(0xFFD8CCF4)
