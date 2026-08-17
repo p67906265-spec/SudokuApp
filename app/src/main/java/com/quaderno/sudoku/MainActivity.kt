@@ -337,8 +337,10 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
         }
 
         val row = pos / 9
+        val col = pos % 9
         val box = (row / 3) * 3 + (pos % 9 / 3)
         val rowWasComplete = isRowComplete(row)
+        val columnWasComplete = isColumnComplete(col)
         val boxWasComplete = isBoxComplete(box)
 
         pushHistory(pos)
@@ -351,7 +353,7 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
             if (solution[pos] != n) mistakes++
         }
         checkWin()
-        showCompletedArea(pos, row, box, rowWasComplete, boxWasComplete)
+        showCompletedArea(pos, row, col, box, rowWasComplete, columnWasComplete, boxWasComplete)
         if (!won && board[pos] == n && placedCount(n) >= 9) {
             selectNextIncompleteNumber(n)
         }
@@ -359,6 +361,9 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
 
     private fun isRowComplete(row: Int): Boolean =
         (0..8).all { col -> board[row * 9 + col] == solution[row * 9 + col] }
+
+    private fun isColumnComplete(col: Int): Boolean =
+        (0..8).all { row -> board[row * 9 + col] == solution[row * 9 + col] }
 
     private fun isBoxComplete(box: Int): Boolean {
         val firstRow = (box / 3) * 3
@@ -371,10 +376,21 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
         }
     }
 
-    private fun showCompletedArea(origin: Int, row: Int, box: Int, rowWasComplete: Boolean, boxWasComplete: Boolean) {
+    private fun showCompletedArea(
+        origin: Int,
+        row: Int,
+        col: Int,
+        box: Int,
+        rowWasComplete: Boolean,
+        columnWasComplete: Boolean,
+        boxWasComplete: Boolean
+    ) {
         val cells = linkedSetOf<Int>()
         if (!rowWasComplete && isRowComplete(row)) {
             (0..8).forEach { col -> cells += row * 9 + col }
+        }
+        if (!columnWasComplete && isColumnComplete(col)) {
+            (0..8).forEach { row -> cells += row * 9 + col }
         }
         if (!boxWasComplete && isBoxComplete(box)) {
             val firstRow = (box / 3) * 3
@@ -1773,8 +1789,8 @@ private fun SudokuCell(game: GameState, pos: Int) {
 
     val bg = when {
         isError && isSelected -> Color(0xFFFFB9B9)
-        isCelebrationWave -> Color(0xFF9EDFCB)
-        isCelebrationTrail -> Color(0xFFD8F1EA)
+        isCelebrationWave -> Color(0xFF8DB8E8)
+        isCelebrationTrail -> Color(0xFFDCEAF8)
         isSelected -> Color(0xFF79B8F3)
         isError -> Color(0xFFFFE1E1)
         isSameNum -> Color(0xFFD8CCF4)
