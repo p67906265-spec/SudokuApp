@@ -304,19 +304,18 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
 
     fun select(pos: Int) { if (!won && !failed()) selected = pos }
 
-    private fun boxPositions(pos: Int): IntRange {
-        val startRow = (pos / 9 / 3) * 3
-        val startCol = (pos % 9 / 3) * 3
-        val first = startRow * 9 + startCol
-        return first..(first + 20)
-    }
-
     private fun isInSameBox(origin: Int, candidate: Int): Boolean =
         origin / 9 / 3 == candidate / 9 / 3 && origin % 9 / 3 == candidate % 9 / 3
 
-    private fun removeNoteFromBox(pos: Int, n: Int) {
-        boxPositions(pos).forEach { candidate ->
-            if (candidate in 0 until 81 && isInSameBox(pos, candidate)) notes[candidate].remove(n)
+    private fun removeNoteFromPeers(pos: Int, n: Int) {
+        val row = pos / 9
+        val col = pos % 9
+        (0 until 81).forEach { candidate ->
+            val sameRow = candidate / 9 == row
+            val sameColumn = candidate % 9 == col
+            if (sameRow || sameColumn || isInSameBox(pos, candidate)) {
+                notes[candidate].remove(n)
+            }
         }
     }
 
@@ -349,7 +348,7 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
         } else {
             board[pos] = n
             notes[pos].clear()
-            removeNoteFromBox(pos, n)
+            removeNoteFromPeers(pos, n)
             if (solution[pos] != n) mistakes++
         }
         checkWin()
@@ -458,18 +457,20 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
     fun toggleNotes() { if (!failed()) notesMode = !notesMode }
 
     fun hint() {
-        if (won || failed()) return
-        hintsUsed++
+        if (won || failed() || hintsUsed >= 2) return
         val candidates = (0 until 81).filter { !given[it] && board[it] != solution[it] }
         if (candidates.isEmpty()) return
+        hintsUsed++
         val pos = if (settings.smartHints && selected in candidates) selected else candidates.random()
         pushHistory(pos)
         board[pos] = solution[pos]
         notes[pos].clear()
-        removeNoteFromBox(pos, solution[pos])
+        removeNoteFromPeers(pos, solution[pos])
         selected = pos
         checkWin()
     }
+
+    fun hintsRemaining(): Int = (2 - hintsUsed).coerceAtLeast(0)
 
     fun completeLastCell() {
         if (won || failed() || remaining() != 1) return
@@ -479,7 +480,7 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
             pushHistory(pos)
             board[pos] = solution[pos]
             notes[pos].clear()
-            removeNoteFromBox(pos, solution[pos])
+            removeNoteFromPeers(pos, solution[pos])
             selected = pos
             checkWin()
         }
@@ -1887,7 +1888,7 @@ private fun ModernActions(game: GameState) {
         ModernAction("↶", "Annulla") { game.undo() }
         EraserAction { game.erase() }
         ModernAction(if (game.notesMode) "✎ ON" else "✎", "Note", game.notesMode) { game.toggleNotes() }
-        ModernAction("♧", "Suggerim.") { game.hint() }
+        ModernAction("♧", "Aiuti: ${game.hintsRemaining()}") { game.hint() }
     }
 }
 
