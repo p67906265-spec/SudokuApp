@@ -1665,9 +1665,9 @@ fun SudokuScreen(
             val maxDistance = game.celebrationMaxDistance()
             for (step in 0..maxDistance) {
                 game.advanceCelebration(id, step)
-                delay(55)
+                delay(45)
             }
-            delay(180)
+            delay(150)
             game.clearCelebration(id)
         }
     }
@@ -1987,22 +1987,92 @@ private fun FailureOverlay(game: GameState) {
 
 @Composable
 private fun WinOverlay(game: GameState, onMenu: () -> Unit, onChangeLevel: () -> Unit) {
-    Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.95f)), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("✓", color = AppBlue, fontSize = 68.sp)
-            Text("Sudoku completato!", color = Color(0xFF263A58), fontSize = 25.sp, fontWeight = FontWeight.Bold)
-            Text("Livello ${game.difficulty.label.lowercase().replaceFirstChar { it.uppercase() }}", color = AppText, fontSize = 17.sp)
-            Text("Codice ${game.gameCode}", color = AppText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Text("Punteggio ${game.score(true)}", color = AppBlue, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(24.dp))
-            Button(
-                onClick = { game.reset() },
-                modifier = Modifier.width(230.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
-            ) { Text("Gioca ancora") }
-            Spacer(Modifier.height(10.dp))
-            OutlinedButton(onClick = onChangeLevel, modifier = Modifier.width(230.dp)) { Text("Cambia livello", color = AppBlue) }
-            TextButton(onClick = onMenu, modifier = Modifier.width(230.dp)) { Text("Torna al menu", color = AppText) }
+    Box(
+        Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.90f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 26.dp),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
+                shape = RoundedCornerShape(28.dp),
+                color = Color.White,
+                shadowElevation = 12.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(start = 24.dp, top = 58.dp, end = 24.dp, bottom = 26.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        "Sudoku completato!",
+                        color = Color(0xFF263A58),
+                        fontSize = 27.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Livello ${game.difficulty.label.lowercase().replaceFirstChar { it.uppercase() }}",
+                        color = AppText,
+                        fontSize = 18.sp
+                    )
+                    Text(
+                        "Codice ${game.gameCode}",
+                        color = AppText,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Punteggio ${game.score(true)}",
+                        color = AppBlue,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(24.dp))
+                    Button(
+                        onClick = { game.reset() },
+                        modifier = Modifier.fillMaxWidth().height(54.dp),
+                        shape = RoundedCornerShape(27.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
+                    ) {
+                        Text("Gioca ancora", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = onChangeLevel,
+                        modifier = Modifier.fillMaxWidth().height(54.dp),
+                        shape = RoundedCornerShape(27.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AppBlue)
+                    ) {
+                        Text("Cambia livello", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Button(
+                        onClick = onMenu,
+                        modifier = Modifier.fillMaxWidth().height(54.dp),
+                        shape = RoundedCornerShape(27.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AppBlueSoft,
+                            contentColor = AppBlue
+                        )
+                    ) {
+                        Text("Torna al menu", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+            Surface(
+                modifier = Modifier.size(82.dp),
+                shape = CircleShape,
+                color = AppBlue,
+                shadowElevation = 6.dp
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text("✓", color = Color.White, fontSize = 51.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }
