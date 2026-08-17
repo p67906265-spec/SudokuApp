@@ -1664,9 +1664,9 @@ fun SudokuScreen(
             val maxDistance = game.celebrationMaxDistance()
             for (step in 0..maxDistance) {
                 game.advanceCelebration(id, step)
-                delay(85)
+                delay(55)
             }
-            delay(280)
+            delay(180)
             game.clearCelebration(id)
         }
     }
