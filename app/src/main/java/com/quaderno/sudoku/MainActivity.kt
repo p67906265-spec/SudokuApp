@@ -194,17 +194,28 @@ private object ChallengeCodes {
 
     fun seed(code: String): Int = normalize(code).hashCode()
 
-    fun daily(date: LocalDate): String {
+    private fun dailyBody(date: LocalDate): String {
         val digits = "%02d%02d%02d".format(date.year % 100, date.monthValue, date.dayOfMonth)
-        val body = digits.map { digit ->
+        return digits.map { digit ->
             when (digit) {
                 '0' -> 'A'
                 '1' -> 'B'
                 else -> digit
             }
         }.joinToString("")
-        return "ME-$body"
     }
+
+    fun daily(date: LocalDate, unlockedLevels: List<SudokuEngine.Difficulty>): String {
+        val levels = unlockedLevels.ifEmpty { listOf(SudokuEngine.Difficulty.FACILE) }
+        val random = Random(date.toEpochDay().toInt() xor 0x5D0D0)
+        val level = levels[random.nextInt(levels.size)]
+        return "${prefixes.getValue(level)}-${dailyBody(date)}"
+    }
+
+    fun dailyCodes(date: LocalDate): Set<String> =
+        prefixes.values.map { "$it-${dailyBody(date)}" }.toSet() + legacyDaily(date)
+
+    fun isDailyCode(date: LocalDate, code: String): Boolean = normalize(code) in dailyCodes(date)
 
     fun legacyDaily(date: LocalDate): String {
         val random = Random(date.toEpochDay().toInt())
@@ -544,6 +555,17 @@ private class StatsStore(context: Context) {
     fun unlockProgress(level: SudokuEngine.Difficulty): Int = if (level.ordinal < 2) 5 else
         stats(SudokuEngine.Difficulty.values()[level.ordinal - 1]).completed.coerceAtMost(5)
 
+    fun unlockedLevels(): List<SudokuEngine.Difficulty> =
+        SudokuEngine.Difficulty.values().filter(::isUnlocked)
+
+    fun dailyCode(date: LocalDate): String {
+        val key = "daily_code_${date}"
+        prefs.getString(key, null)?.let { return ChallengeCodes.normalize(it) }
+        return ChallengeCodes.daily(date, unlockedLevels()).also { code ->
+            prefs.edit().putString(key, code).apply()
+        }
+    }
+
     fun start(level: SudokuEngine.Difficulty) {
         abandonActive()
         activeLevel = level
@@ -726,7 +748,7 @@ private fun SudokuAppRoot() {
                 dailySelectFirstAvailable = false
                 val selectedDailyDate = LocalDate.now().let { today ->
                     (1..today.dayOfMonth).map { YearMonth.from(today).atDay(it) }
-                        .firstOrNull { ChallengeCodes.daily(it) == code }
+                        .firstOrNull { ChallengeCodes.isDailyCode(it, code) }
                 }
                 if (selectedDailyDate != null &&
                     dailyGameDate == selectedDailyDate &&
@@ -778,7 +800,7 @@ private fun SudokuAppRoot() {
                         val date = pendingDailyDate
                         if (date != null) {
                             dailyGameDate = date
-                            game.reset(SudokuEngine.Difficulty.MEDIO, ChallengeCodes.daily(date))
+                            game.reset(game.difficulty, game.gameCode)
                             screen = AppScreen.GAME
                         }
                         pendingDailyDate = null
@@ -917,8 +939,7 @@ private fun DailyChallengeScreen(
     )
     val completedDays = (1..month.lengthOfMonth()).filter { day ->
         val date = month.atDay(day)
-        stats.challengeResult(ChallengeCodes.daily(date)) != null ||
-            stats.challengeResult(ChallengeCodes.legacyDaily(date)) != null
+        ChallengeCodes.dailyCodes(date).any { stats.challengeResult(it) != null }
     }.toSet()
     var selectedDate by remember(month, statsVersion, selectFirstAvailable) {
         mutableStateOf(
@@ -1014,7 +1035,7 @@ private fun DailyChallengeScreen(
             }
             Spacer(Modifier.height(18.dp))
             Button(
-                onClick = { selectedDate?.let { onPlay(ChallengeCodes.daily(it)) } },
+                onClick = { selectedDate?.let { onPlay(stats.dailyCode(it)) } },
                 enabled = selectedDate != null,
                 modifier = Modifier.fillMaxWidth().height(58.dp),
                 shape = RoundedCornerShape(29.dp),
