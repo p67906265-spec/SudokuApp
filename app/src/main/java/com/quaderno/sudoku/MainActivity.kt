@@ -40,619 +40,11 @@ import java.time.YearMonth
 import kotlin.random.Random
 
 // Palette moderna della schermata di riferimento
-private val AppBlue = Color(0xFF2F63AD)
-private val AppBlueSoft = Color(0xFFE3EDF8)
-private val GridLine = Color(0xFF3E424B)
-private val CellLine = Color(0xFFC6CDD6)
-private val AppText = Color(0xFF727887)
-
-// ---------------------------------------------------------------------------
-// Motore Sudoku: generazione griglia piena, rimozione celle con verifica
-// di soluzione unica (backtracking con bitmask, stessa logica per ogni livello)
-// ---------------------------------------------------------------------------
-object SudokuEngine {
-
-    enum class Difficulty(val label: String, val clues: Int) {
-        FACILE("FACILE", 40),
-        MEDIO("MEDIO", 33),
-        DIFFICILE("DIFFICILE", 27),
-        ESPERTO("ESPERTO", 23),
-        MASTER("MASTER", 21),
-        ESTREMO("ESTREMO", 19)
-    }
-
-    data class Puzzle(val given: IntArray, val solution: IntArray)
-
-    private fun boxOf(r: Int, c: Int) = (r / 3) * 3 + (c / 3)
-
-    private fun generateFullGrid(random: Random): IntArray {
-        val grid = IntArray(81)
-        val rowMask = IntArray(9)
-        val colMask = IntArray(9)
-        val boxMask = IntArray(9)
-
-        fun fill(pos: Int): Boolean {
-            if (pos == 81) return true
-            val r = pos / 9
-            val c = pos % 9
-            val b = boxOf(r, c)
-            val used = rowMask[r] or colMask[c] or boxMask[b]
-            val nums = (1..9).shuffled(random)
-            for (n in nums) {
-                val bit = 1 shl n
-                if (used and bit != 0) continue
-                grid[pos] = n
-                rowMask[r] = rowMask[r] or bit
-                colMask[c] = colMask[c] or bit
-                boxMask[b] = boxMask[b] or bit
-                if (fill(pos + 1)) return true
-                rowMask[r] = rowMask[r] and bit.inv()
-                colMask[c] = colMask[c] and bit.inv()
-                boxMask[b] = boxMask[b] and bit.inv()
-                grid[pos] = 0
-            }
-            return false
-        }
-        fill(0)
-        return grid
-    }
-
-    /** Conta le soluzioni fino a `limit` (usato per verificare l'unicità: basta sapere se sono 1 o >=2). */
-    private fun countSolutions(start: IntArray, limit: Int): Int {
-        val g = start.copyOf()
-        val rowMask = IntArray(9)
-        val colMask = IntArray(9)
-        val boxMask = IntArray(9)
-        for (p in 0 until 81) {
-            if (g[p] != 0) {
-                val r = p / 9; val c = p % 9; val b = boxOf(r, c); val bit = 1 shl g[p]
-                rowMask[r] = rowMask[r] or bit
-                colMask[c] = colMask[c] or bit
-                boxMask[b] = boxMask[b] or bit
-            }
-        }
-        var count = 0
-
-        fun findBestCell(): Triple<Int, Int, Int> {
-            var best = -1; var bestCount = 10; var bestCands = 0
-            for (p in 0 until 81) {
-                if (g[p] != 0) continue
-                val r = p / 9; val c = p % 9; val b = boxOf(r, c)
-                val used = rowMask[r] or colMask[c] or boxMask[b]
-                var cands = 0; var n = 0
-                for (v in 1..9) if (used and (1 shl v) == 0) { cands = cands or (1 shl v); n++ }
-                if (n < bestCount) { bestCount = n; best = p; bestCands = cands; if (n == 0) break }
-            }
-            return Triple(best, bestCount, bestCands)
-        }
-
-        fun solve() {
-            if (count >= limit) return
-            val (pos, cnt, cands) = findBestCell()
-            if (pos == -1) { count++; return }
-            if (cnt == 0) return
-            val r = pos / 9; val c = pos % 9; val b = boxOf(r, c)
-            for (v in 1..9) {
-                val bit = 1 shl v
-                if (cands and bit == 0) continue
-                g[pos] = v
-                rowMask[r] = rowMask[r] or bit; colMask[c] = colMask[c] or bit; boxMask[b] = boxMask[b] or bit
-                solve()
-                rowMask[r] = rowMask[r] and bit.inv(); colMask[c] = colMask[c] and bit.inv(); boxMask[b] = boxMask[b] and bit.inv()
-                g[pos] = 0
-                if (count >= limit) return
-            }
-        }
-        solve()
-        return count
-    }
-
-    fun generatePuzzle(difficulty: Difficulty, seed: Int = Random.nextInt()): Puzzle {
-        val random = Random(seed)
-        val full = generateFullGrid(random)
-        val puzzle = full.copyOf()
-        val target = difficulty.clues
-        val order = (0 until 81).shuffled(random)
-        var clues = 81
-        for (pos in order) {
-            if (clues <= target) break
-            val backup = puzzle[pos]
-            if (backup == 0) continue
-            puzzle[pos] = 0
-            val solCount = countSolutions(puzzle, 2)
-            if (solCount == 1) clues-- else puzzle[pos] = backup
-        }
-        return Puzzle(puzzle, full)
-    }
-}
-
-private object ChallengeCodes {
-    private const val CHARS = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
-    private val prefixes = mapOf(
-        SudokuEngine.Difficulty.FACILE to "FA",
-        SudokuEngine.Difficulty.MEDIO to "ME",
-        SudokuEngine.Difficulty.DIFFICILE to "DI",
-        SudokuEngine.Difficulty.ESPERTO to "ES",
-        SudokuEngine.Difficulty.MASTER to "MA",
-        SudokuEngine.Difficulty.ESTREMO to "EX"
-    )
-
-    fun create(level: SudokuEngine.Difficulty): String {
-        val body = buildString { repeat(6) { append(CHARS.random()) } }
-        return "${prefixes.getValue(level)}-$body"
-    }
-
-    fun normalize(value: String) = value.trim().uppercase().replace(" ", "")
-
-    fun difficulty(code: String): SudokuEngine.Difficulty? {
-        val normalized = normalize(code)
-        val parts = normalized.split('-')
-        if (parts.size != 2 || parts[1].length != 6 || parts[1].any { it !in CHARS }) return null
-        return prefixes.entries.firstOrNull { it.value == normalized.substringBefore('-') }?.key
-    }
-
-    fun seed(code: String): Int = normalize(code).hashCode()
-
-    private fun dailyBody(date: LocalDate): String {
-        val digits = "%02d%02d%02d".format(date.year % 100, date.monthValue, date.dayOfMonth)
-        return digits.map { digit ->
-            when (digit) {
-                '0' -> 'A'
-                '1' -> 'B'
-                else -> digit
-            }
-        }.joinToString("")
-    }
-
-    fun daily(date: LocalDate, unlockedLevels: List<SudokuEngine.Difficulty>): String {
-        val levels = unlockedLevels.ifEmpty { listOf(SudokuEngine.Difficulty.FACILE) }
-        val random = Random(date.toEpochDay().toInt() xor 0x5D0D0)
-        val level = levels[random.nextInt(levels.size)]
-        return "${prefixes.getValue(level)}-${dailyBody(date)}"
-    }
-
-    fun dailyCodes(date: LocalDate): Set<String> =
-        prefixes.values.map { "$it-${dailyBody(date)}" }.toSet() + legacyDaily(date)
-
-    fun isDailyCode(date: LocalDate, code: String): Boolean = normalize(code) in dailyCodes(date)
-
-    fun legacyDaily(date: LocalDate): String {
-        val random = Random(date.toEpochDay().toInt())
-        val body = buildString { repeat(6) { append(CHARS[random.nextInt(CHARS.length)]) } }
-        return "ME-$body"
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Stato di partita
-// ---------------------------------------------------------------------------
-class GameState(difficulty: SudokuEngine.Difficulty, private val settings: SettingsStore) {
-    var difficulty by mutableStateOf(difficulty)
-    var given: BooleanArray = BooleanArray(81)
-    var solution: IntArray = IntArray(81)
-    var gameCode by mutableStateOf("")
-    private var startingBoard: IntArray = IntArray(81)
-    val board: SnapshotStateList<Int> = mutableStateListOf()
-    val notes: List<SnapshotStateList<Int>> = List(81) { mutableStateListOf() }
-    var selected by mutableStateOf(-1)
-    var notesMode by mutableStateOf(false)
-    var mistakes by mutableStateOf(0)
-    var hintsUsed by mutableStateOf(0)
-    var autoCompleted by mutableStateOf(false)
-    var seconds by mutableStateOf(0)
-    var won by mutableStateOf(false)
-    var paused by mutableStateOf(false)
-    var generation by mutableStateOf(0)
-    val celebrationCells: SnapshotStateList<Int> = mutableStateListOf()
-    var celebrationId by mutableStateOf(0)
-    var celebrationOrigin by mutableStateOf(-1)
-    var celebrationStep by mutableStateOf(-1)
-    private val history = ArrayDeque<HistoryEntry>()
-
-    private data class HistoryEntry(val pos: Int, val value: Int, val notes: List<Int>)
-
-    init { reset(difficulty) }
-
-    fun reset(newDifficulty: SudokuEngine.Difficulty = difficulty, requestedCode: String? = null) {
-        val code = requestedCode?.let(ChallengeCodes::normalize) ?: ChallengeCodes.create(newDifficulty)
-        val codeDifficulty = ChallengeCodes.difficulty(code) ?: newDifficulty
-        difficulty = codeDifficulty
-        gameCode = code
-        val puzzle = SudokuEngine.generatePuzzle(codeDifficulty, ChallengeCodes.seed(code))
-        given = BooleanArray(81) { puzzle.given[it] != 0 }
-        solution = puzzle.solution
-        startingBoard = puzzle.given.copyOf()
-        board.clear(); board.addAll(puzzle.given.toList())
-        notes.forEach { it.clear() }
-        selected = -1
-        notesMode = false
-        mistakes = 0
-        hintsUsed = 0
-        autoCompleted = false
-        seconds = 0
-        won = false
-        paused = false
-        celebrationCells.clear()
-        celebrationOrigin = -1
-        celebrationStep = -1
-        generation++
-        history.clear()
-    }
-
-    fun retry() {
-        board.clear(); board.addAll(startingBoard.toList())
-        notes.forEach { it.clear() }
-        selected = -1
-        notesMode = false
-        mistakes = 0
-        hintsUsed = 0
-        autoCompleted = false
-        seconds = 0
-        won = false
-        paused = false
-        celebrationCells.clear()
-        celebrationOrigin = -1
-        celebrationStep = -1
-        generation++
-        history.clear()
-    }
-
-    private fun pushHistory(pos: Int) {
-        history.addLast(HistoryEntry(pos, board[pos], notes[pos].toList()))
-        if (history.size > 200) history.removeFirst()
-    }
-
-    fun select(pos: Int) { if (!won && !failed()) selected = pos }
-
-    private fun isInSameBox(origin: Int, candidate: Int): Boolean =
-        origin / 9 / 3 == candidate / 9 / 3 && origin % 9 / 3 == candidate % 9 / 3
-
-    private fun removeNoteFromPeers(pos: Int, n: Int) {
-        val row = pos / 9
-        val col = pos % 9
-        (0 until 81).forEach { candidate ->
-            val sameRow = candidate / 9 == row
-            val sameColumn = candidate % 9 == col
-            if (sameRow || sameColumn || isInSameBox(pos, candidate)) {
-                notes[candidate].remove(n)
-            }
-        }
-    }
-
-    private fun numberAlreadyInBox(pos: Int, n: Int): Boolean =
-        (0 until 81).any { it != pos && isInSameBox(pos, it) && board[it] == n }
-
-    fun input(n: Int) {
-        if (won || failed()) return
-        val pos = selected
-        if (pos == -1 || given[pos]) return
-
-        if (notesMode) {
-            if (board[pos] != 0) return
-            if (numberAlreadyInBox(pos, n)) return
-            pushHistory(pos)
-            if (notes[pos].contains(n)) notes[pos].remove(n) else notes[pos].add(n)
-            return
-        }
-
-        val row = pos / 9
-        val col = pos % 9
-        val box = (row / 3) * 3 + (pos % 9 / 3)
-        val rowWasComplete = isRowComplete(row)
-        val columnWasComplete = isColumnComplete(col)
-        val boxWasComplete = isBoxComplete(box)
-
-        pushHistory(pos)
-        if (board[pos] == n) {
-            board[pos] = 0
-        } else {
-            board[pos] = n
-            notes[pos].clear()
-            removeNoteFromPeers(pos, n)
-            if (solution[pos] != n) mistakes++
-        }
-        checkWin()
-        showCompletedArea(pos, row, col, box, rowWasComplete, columnWasComplete, boxWasComplete)
-        if (!won && board[pos] == n && placedCount(n) >= 9) {
-            selectNextIncompleteNumber(n)
-        }
-    }
-
-    private fun isRowComplete(row: Int): Boolean =
-        (0..8).all { col -> board[row * 9 + col] == solution[row * 9 + col] }
-
-    private fun isColumnComplete(col: Int): Boolean =
-        (0..8).all { row -> board[row * 9 + col] == solution[row * 9 + col] }
-
-    private fun isBoxComplete(box: Int): Boolean {
-        val firstRow = (box / 3) * 3
-        val firstCol = (box % 3) * 3
-        return (0..2).all { dr ->
-            (0..2).all { dc ->
-                val cell = (firstRow + dr) * 9 + firstCol + dc
-                board[cell] == solution[cell]
-            }
-        }
-    }
-
-    private fun showCompletedArea(
-        origin: Int,
-        row: Int,
-        col: Int,
-        box: Int,
-        rowWasComplete: Boolean,
-        columnWasComplete: Boolean,
-        boxWasComplete: Boolean
-    ) {
-        val cells = linkedSetOf<Int>()
-        if (!rowWasComplete && isRowComplete(row)) {
-            (0..8).forEach { col -> cells += row * 9 + col }
-        }
-        if (!columnWasComplete && isColumnComplete(col)) {
-            (0..8).forEach { row -> cells += row * 9 + col }
-        }
-        if (!boxWasComplete && isBoxComplete(box)) {
-            val firstRow = (box / 3) * 3
-            val firstCol = (box % 3) * 3
-            (0..2).forEach { dr -> (0..2).forEach { dc -> cells += (firstRow + dr) * 9 + firstCol + dc } }
-        }
-        if (cells.isNotEmpty() && settings.animations) {
-            celebrationCells.clear()
-            celebrationCells.addAll(cells)
-            celebrationOrigin = origin
-            celebrationStep = 0
-            celebrationId++
-        }
-    }
-
-    fun celebrationDistance(pos: Int): Int {
-        if (celebrationOrigin !in 0 until 81 || pos !in celebrationCells) return -1
-        return kotlin.math.abs(pos / 9 - celebrationOrigin / 9) +
-            kotlin.math.abs(pos % 9 - celebrationOrigin % 9)
-    }
-
-    fun celebrationMaxDistance(): Int =
-        celebrationCells.maxOfOrNull(::celebrationDistance)?.coerceAtLeast(0) ?: 0
-
-    fun advanceCelebration(id: Int, step: Int) {
-        if (celebrationId == id) celebrationStep = step
-    }
-
-    fun clearCelebration(id: Int) {
-        if (celebrationId == id) {
-            celebrationCells.clear()
-            celebrationOrigin = -1
-            celebrationStep = -1
-        }
-    }
-
-    private fun selectNextIncompleteNumber(completedNumber: Int) {
-        for (step in 1..8) {
-            val nextNumber = ((completedNumber - 1 + step) % 9) + 1
-            if (placedCount(nextNumber) < 9) {
-                val nextPosition = board.indexOfFirst { it == nextNumber }
-                if (nextPosition >= 0) selected = nextPosition
-                return
-            }
-        }
-    }
-
-    fun erase() {
-        if (won || failed()) return
-        val pos = selected
-        if (pos == -1 || given[pos]) return
-        pushHistory(pos)
-        board[pos] = 0
-        notes[pos].clear()
-    }
-
-    fun undo() {
-        if (history.isEmpty() || failed()) return
-        val last = history.removeLast()
-        board[last.pos] = last.value
-        notes[last.pos].clear(); notes[last.pos].addAll(last.notes)
-        won = false
-    }
-
-    fun toggleNotes() { if (!failed()) notesMode = !notesMode }
-
-    fun hint() {
-        if (won || failed() || hintsUsed >= 2) return
-        val candidates = (0 until 81).filter { !given[it] && board[it] != solution[it] }
-        if (candidates.isEmpty()) return
-        hintsUsed++
-        val pos = if (settings.smartHints && selected in candidates) selected else candidates.random()
-        pushHistory(pos)
-        board[pos] = solution[pos]
-        notes[pos].clear()
-        removeNoteFromPeers(pos, solution[pos])
-        selected = pos
-        checkWin()
-    }
-
-    fun hintsRemaining(): Int = (2 - hintsUsed).coerceAtLeast(0)
-
-    fun completeLastCell() {
-        if (won || failed() || remaining() != 1) return
-        autoCompleted = true
-        val pos = board.indexOfFirst { it == 0 }
-        if (pos >= 0) {
-            pushHistory(pos)
-            board[pos] = solution[pos]
-            notes[pos].clear()
-            removeNoteFromPeers(pos, solution[pos])
-            selected = pos
-            checkWin()
-        }
-    }
-
-    private fun checkWin() {
-        won = (0 until 81).all { board[it] == solution[it] }
-    }
-
-    fun remaining(): Int = board.count { it == 0 }
-    fun placedCount(n: Int): Int = board.count { it == n }
-    fun failed(): Boolean = settings.errorLimit && mistakes >= 3 && !won
-    fun errorLabel(): String = if (settings.errorLimit) "$mistakes/3" else "$mistakes"
-
-    fun score(final: Boolean = won): Int {
-        val base = intArrayOf(1000, 2000, 3500, 5000, 7500, 10000)[difficulty.ordinal]
-        val editable = given.count { !it }.coerceAtLeast(1)
-        val correct = (0 until 81).count { !given[it] && board[it] == solution[it] }
-        var points = if (final) base else base * correct / editable
-        points -= mistakes * 100 + hintsUsed * 200
-        if (final) {
-            if (mistakes == 0) points += base * 20 / 100
-            if (hintsUsed == 0) points += base * 10 / 100
-            if (!autoCompleted) {
-                val target = intArrayOf(600, 900, 1200, 1500, 1800, 2100)[difficulty.ordinal]
-                points += base * (target - seconds).coerceAtLeast(0) / target / 2
-            }
-        }
-        return points.coerceAtLeast(0)
-    }
-}
-
-private data class LevelStats(
-    val started: Int, val completed: Int, val abandoned: Int,
-    val totalSeconds: Long, val bestSeconds: Int, val bestScore: Int, val flawless: Int
-)
-
-private data class ChallengeResult(
-    val code: String,
-    val seconds: Int,
-    val score: Int,
-    val mistakes: Int,
-    val attempts: Int,
-    val completedAt: Long
-)
-
-class SettingsStore(context: Context) {
-    private val prefs = context.getSharedPreferences("sudoku_settings", Context.MODE_PRIVATE)
-
-    var animations by mutableStateOf(prefs.getBoolean("animations", true))
-        private set
-    var smartHints by mutableStateOf(prefs.getBoolean("smart_hints", true))
-        private set
-    var errorLimit by mutableStateOf(prefs.getBoolean("error_limit", true))
-        private set
-
-    fun updateAnimations(value: Boolean) {
-        animations = value
-        prefs.edit().putBoolean("animations", value).apply()
-    }
-
-    fun updateSmartHints(value: Boolean) {
-        smartHints = value
-        prefs.edit().putBoolean("smart_hints", value).apply()
-    }
-
-    fun updateErrorLimit(value: Boolean) {
-        errorLimit = value
-        prefs.edit().putBoolean("error_limit", value).apply()
-    }
-}
-
-private class StatsStore(context: Context) {
-    private val prefs = context.getSharedPreferences("sudoku_stats", Context.MODE_PRIVATE)
-    private var activeLevel: SudokuEngine.Difficulty? = null
-    private fun key(level: SudokuEngine.Difficulty, field: String) = "${level.name}_$field"
-    private fun int(level: SudokuEngine.Difficulty, field: String) = prefs.getInt(key(level, field), 0)
-
-    fun stats(level: SudokuEngine.Difficulty) = LevelStats(
-        int(level, "started"), int(level, "completed"), int(level, "abandoned"),
-        prefs.getLong(key(level, "totalSeconds"), 0L), int(level, "bestSeconds"),
-        int(level, "bestScore"), int(level, "flawless")
-    )
-
-    fun isUnlocked(level: SudokuEngine.Difficulty): Boolean =
-        level.ordinal < 2 || stats(SudokuEngine.Difficulty.values()[level.ordinal - 1]).completed >= 5
-
-    fun unlockProgress(level: SudokuEngine.Difficulty): Int = if (level.ordinal < 2) 5 else
-        stats(SudokuEngine.Difficulty.values()[level.ordinal - 1]).completed.coerceAtMost(5)
-
-    fun unlockedLevels(): List<SudokuEngine.Difficulty> =
-        SudokuEngine.Difficulty.values().filter(::isUnlocked)
-
-    fun dailyCode(date: LocalDate): String {
-        val key = "daily_code_${date}"
-        prefs.getString(key, null)?.let { return ChallengeCodes.normalize(it) }
-        return ChallengeCodes.daily(date, unlockedLevels()).also { code ->
-            prefs.edit().putString(key, code).apply()
-        }
-    }
-
-    fun start(level: SudokuEngine.Difficulty) {
-        abandonActive()
-        activeLevel = level
-        prefs.edit().putInt(key(level, "started"), int(level, "started") + 1).apply()
-    }
-
-    fun abandonActive() {
-        val level = activeLevel ?: return
-        prefs.edit().putInt(key(level, "abandoned"), int(level, "abandoned") + 1).apply()
-        activeLevel = null
-        updateStreak(false)
-    }
-
-    fun complete(game: GameState) {
-        val level = activeLevel ?: return
-        val old = stats(level)
-        val bestTime = if (old.bestSeconds == 0) game.seconds else minOf(old.bestSeconds, game.seconds)
-        prefs.edit().putInt(key(level, "completed"), old.completed + 1)
-            .putLong(key(level, "totalSeconds"), old.totalSeconds + game.seconds)
-            .putInt(key(level, "bestSeconds"), bestTime)
-            .putInt(key(level, "bestScore"), maxOf(old.bestScore, game.score(true)))
-            .putInt(key(level, "flawless"), old.flawless + if (game.mistakes == 0) 1 else 0).apply()
-        saveChallengeResult(game)
-        activeLevel = null
-        updateStreak(true)
-    }
-
-    private fun challengeKey(code: String, field: String) = "challenge_${ChallengeCodes.normalize(code)}_$field"
-
-    private fun saveChallengeResult(game: GameState) {
-        val code = ChallengeCodes.normalize(game.gameCode)
-        val previous = challengeResult(code)
-        val codes = prefs.getStringSet("challenge_codes", emptySet()).orEmpty().toMutableSet()
-        codes.add(code)
-        prefs.edit()
-            .putStringSet("challenge_codes", codes)
-            .putInt(challengeKey(code, "seconds"), if (previous == null) game.seconds else minOf(previous.seconds, game.seconds))
-            .putInt(challengeKey(code, "score"), maxOf(previous?.score ?: 0, game.score(true)))
-            .putInt(challengeKey(code, "mistakes"), if (previous == null || game.seconds <= previous.seconds) game.mistakes else previous.mistakes)
-            .putInt(challengeKey(code, "attempts"), (previous?.attempts ?: 0) + 1)
-            .putLong(challengeKey(code, "completedAt"), System.currentTimeMillis())
-            .apply()
-    }
-
-    fun challengeResult(code: String): ChallengeResult? {
-        val normalized = ChallengeCodes.normalize(code)
-        if (!prefs.getStringSet("challenge_codes", emptySet()).orEmpty().contains(normalized)) return null
-        return ChallengeResult(
-            normalized,
-            prefs.getInt(challengeKey(normalized, "seconds"), 0),
-            prefs.getInt(challengeKey(normalized, "score"), 0),
-            prefs.getInt(challengeKey(normalized, "mistakes"), 0),
-            prefs.getInt(challengeKey(normalized, "attempts"), 1),
-            prefs.getLong(challengeKey(normalized, "completedAt"), 0L)
-        )
-    }
-
-    fun challengeHistory(): List<ChallengeResult> =
-        prefs.getStringSet("challenge_codes", emptySet()).orEmpty()
-            .mapNotNull(::challengeResult)
-            .sortedByDescending { it.completedAt }
-
-    private fun updateStreak(won: Boolean) {
-        val current = if (won) prefs.getInt("currentStreak", 0) + 1 else 0
-        prefs.edit().putInt("currentStreak", current)
-            .putInt("bestStreak", maxOf(prefs.getInt("bestStreak", 0), current)).apply()
-    }
-
-    fun currentStreak() = prefs.getInt("currentStreak", 0)
-    fun bestStreak() = prefs.getInt("bestStreak", 0)
-}
+internal val AppBlue = Color(0xFF2F63AD)
+internal val AppBlueSoft = Color(0xFFE3EDF8)
+internal val GridLine = Color(0xFF3E424B)
+internal val CellLine = Color(0xFFC6CDD6)
+internal val AppText = Color(0xFF727887)
 
 // ---------------------------------------------------------------------------
 // Activity
@@ -669,7 +61,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-
 private enum class AppScreen { HOME, GAME, SETTINGS, TUTORIAL, STATISTICS, CHALLENGES, DAILY }
 
 @Composable
@@ -687,12 +78,18 @@ private fun SudokuAppRoot() {
     var showDailyResultDialog by remember { mutableStateOf(false) }
     var dailyResultSeconds by remember { mutableStateOf(0) }
     var dailyResultScore by remember { mutableStateOf(0) }
+    var newlyUnlockedLevel by remember { mutableStateOf<SudokuEngine.Difficulty?>(null) }
     val game = remember { GameState(SudokuEngine.Difficulty.MEDIO, settings) }
 
     LaunchedEffect(game.won, game.generation) {
         if (game.won) {
+            val nextLevel = SudokuEngine.Difficulty.values().getOrNull(game.difficulty.ordinal + 1)
+            val wasNextLevelUnlocked = nextLevel?.let(stats::isUnlocked) ?: true
             stats.complete(game)
             statsVersion++
+            if (nextLevel != null && !wasNextLevelUnlocked && stats.isUnlocked(nextLevel)) {
+                newlyUnlockedLevel = nextLevel
+            }
             if (dailyGameDate != null) {
                 dailyResultSeconds = game.seconds
                 dailyResultScore = game.score(true)
@@ -875,6 +272,91 @@ private fun SudokuAppRoot() {
                 ) { Text("Torna alle sfide", fontSize = 17.sp, fontWeight = FontWeight.Bold) }
             }
         )
+    }
+
+    newlyUnlockedLevel?.let { level ->
+        UnlockOverlay(
+            level = level,
+            onTryLevel = {
+                newlyUnlockedLevel = null
+                showDailyResultDialog = false
+                dailyGameDate = null
+                game.reset(level)
+                screen = AppScreen.GAME
+            },
+            onContinue = { newlyUnlockedLevel = null }
+        )
+    }
+}
+
+@Composable
+private fun UnlockOverlay(
+    level: SudokuEngine.Difficulty,
+    onTryLevel: () -> Unit,
+    onContinue: () -> Unit
+) {
+    BackHandler(onBack = onContinue)
+    Box(
+        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.28f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp),
+            shape = RoundedCornerShape(28.dp),
+            color = Color.White,
+            shadowElevation = 14.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 26.dp, vertical = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier.size(82.dp).background(AppBlue, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("★", color = Color.White, fontSize = 47.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.height(18.dp))
+                Text(
+                    "Congratulazioni!",
+                    color = Color(0xFF263A58),
+                    fontSize = 29.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Hai sbloccato il livello",
+                    color = AppText,
+                    fontSize = 18.sp,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    level.label.lowercase().replaceFirstChar { it.uppercase() },
+                    color = AppBlue,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(26.dp))
+                Button(
+                    onClick = onTryLevel,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
+                ) {
+                    Text("Prova il nuovo livello", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = onContinue,
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    shape = RoundedCornerShape(27.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AppBlue)
+                ) {
+                    Text("Continua", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
     }
 }
 
@@ -1634,443 +1116,6 @@ private fun TutorialBoard(page: Int) {
                             Text("${solved[pos]}", color = if ((pos + r) % 3 == 0) AppBlue else Color(0xFF202437), fontSize = 20.sp)
                         }
                     }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun SudokuScreen(
-    game: GameState,
-    statsVersion: Int,
-    onBack: () -> Unit,
-    onSettings: () -> Unit,
-    onChangeLevel: () -> Unit
-) {
-    statsVersion
-    BackHandler(onBack = onBack)
-
-    // timer: riparte a ogni nuova partita, si ferma automaticamente a vittoria
-    LaunchedEffect(game.generation, game.won) {
-        while (isActive && !game.won && !game.failed()) {
-            delay(1000)
-            if (!game.paused) game.seconds++
-        }
-    }
-
-    LaunchedEffect(game.celebrationId) {
-        val id = game.celebrationId
-        if (id > 0) {
-            val maxDistance = game.celebrationMaxDistance()
-            for (step in 0..maxDistance) {
-                game.advanceCelebration(id, step)
-                delay(45)
-            }
-            delay(150)
-            game.clearCelebration(id)
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 6.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            ModernTopBar(game, onBack, onSettings)
-            Text(
-                "CODICE  ${game.gameCode}",
-                color = AppBlue,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.background(AppBlueSoft, RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 5.dp)
-            )
-            Spacer(Modifier.height(6.dp))
-            ModernStats(game)
-            Spacer(Modifier.height(8.dp))
-            Board(game)
-            Spacer(Modifier.height(22.dp))
-            ModernActions(game)
-            Spacer(Modifier.height(16.dp))
-            NumberPad(game)
-        }
-
-        if (game.paused) PauseOverlay(game)
-        if (game.won) WinOverlay(game, onMenu = onBack, onChangeLevel = onChangeLevel)
-        if (game.failed()) FailureOverlay(game)
-    }
-}
-
-@Composable
-private fun ModernTopBar(game: GameState, onBack: () -> Unit, onSettings: () -> Unit) {
-    val m = (game.seconds / 60).toString().padStart(2, '0')
-    val s = (game.seconds % 60).toString().padStart(2, '0')
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text("‹", color = AppBlue, fontSize = 48.sp, fontWeight = FontWeight.Light, modifier = Modifier.clickable { onBack() })
-        Text("$m:$s", color = Color(0xFF263A58), fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            Text("⟳", color = AppBlue, fontSize = 38.sp, modifier = Modifier.clickable { game.reset() })
-            Text(if (game.paused) "▶" else "Ⅱ", color = AppBlue, fontSize = 30.sp,
-                modifier = Modifier.clickable { game.paused = !game.paused })
-            Text("⚙", color = AppBlue, fontSize = 34.sp, modifier = Modifier.clickable { onSettings() })
-        }
-    }
-}
-
-@Composable
-private fun ModernStats(game: GameState) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-        ModernStat("Oggi", "★ 0")
-        ModernStat("Difficoltà", game.difficulty.label.lowercase().replaceFirstChar { it.uppercase() })
-        ModernStat("Punteggio", "${game.score()}")
-        ModernStat("Errori", game.errorLabel())
-    }
-}
-
-@Composable
-private fun ModernStat(label: String, value: String, clickable: Boolean = false, onClick: () -> Unit = {}) {
-    Column(
-        modifier = if (clickable) Modifier.clickable { onClick() }.padding(4.dp) else Modifier.padding(4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(label, color = AppText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-        Text(value, color = AppText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-private fun Board(game: GameState) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(1f)
-            .background(Color.White)
-            .border(2.dp, GridLine)
-    ) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(9),
-            userScrollEnabled = false,
-            modifier = Modifier.fillMaxSize().background(Color.White)
-        ) {
-            items(81) { pos -> SudokuCell(game, pos) }
-        }
-    }
-}
-
-@Composable
-private fun SudokuCell(game: GameState, pos: Int) {
-    val r = pos / 9
-    val c = pos % 9
-    val b = (r / 3) * 3 + (c / 3)
-    val value = game.board.getOrElse(pos) { 0 }
-    val given = game.given[pos]
-    val selPos = game.selected
-    val selVal = if (selPos != -1) game.board.getOrElse(selPos) { 0 } else 0
-    val selRow = if (selPos != -1) selPos / 9 else -1
-    val selCol = if (selPos != -1) selPos % 9 else -1
-    val selBox = if (selPos != -1) (selRow / 3) * 3 + (selCol / 3) else -1
-
-    val isSelected = pos == selPos
-    val isPeer = selPos != -1 && pos != selPos && (r == selRow || c == selCol || b == selBox)
-    val isSameNum = selVal != 0 && value == selVal && pos != selPos
-    val isError = value != 0 && value != game.solution[pos]
-    val celebrationDistance = game.celebrationDistance(pos)
-    val isCelebrationWave = celebrationDistance >= 0 && celebrationDistance == game.celebrationStep
-    val isCelebrationTrail = celebrationDistance in 0 until game.celebrationStep
-
-    val bg = when {
-        isError && isSelected -> Color(0xFFFFB9B9)
-        isCelebrationWave -> AppBlue
-        isCelebrationTrail -> Color(0xFF79B8F3)
-        isSelected -> Color(0xFF79B8F3)
-        isError -> Color(0xFFFFE1E1)
-        isSameNum -> Color(0xFFD8CCF4)
-        isPeer -> Color(0xFFE8EEF5)
-        else -> Color.White
-    }
-    val textColor = when {
-        isError -> Color(0xFFD32F2F)
-        isCelebrationWave -> Color.White
-        given -> Color.Black
-        value != 0 -> AppBlue
-        else -> Color.Black
-    }
-
-    Box(
-        modifier = Modifier
-            .aspectRatio(1f)
-            .background(bg)
-            .border(
-                width = 0.5.dp,
-                color = CellLine
-            )
-            .then(
-                Modifier
-                    .thickEdge(right = c == 2 || c == 5, bottom = r == 2 || r == 5)
-            )
-            .clickable { game.select(pos) },
-        contentAlignment = Alignment.Center
-    ) {
-        if (value != 0) {
-            Text(
-                "$value",
-                fontWeight = if (given) FontWeight.Bold else FontWeight.SemiBold,
-                fontSize = 23.sp,
-                color = textColor
-            )
-        } else if (game.notes[pos].isNotEmpty()) {
-            NotesGrid(game.notes[pos])
-        }
-    }
-}
-
-@Composable
-private fun NotesGrid(activeNotes: List<Int>) {
-    Column(Modifier.fillMaxSize()) {
-        for (row in 0..2) {
-            Row(Modifier.weight(1f)) {
-                for (col in 0..2) {
-                    val n = row * 3 + col + 1
-                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        if (activeNotes.contains(n)) {
-                            Text(
-                                "$n",
-                                fontSize = 10.sp,
-                                lineHeight = 10.sp,
-                                maxLines = 1,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF405D7C)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun Modifier.thickEdge(right: Boolean, bottom: Boolean): Modifier {
-    var m = this
-    if (right) m = m.drawBehind {
-        val stroke = 3.dp.toPx()
-        drawLine(
-            color = GridLine,
-            start = androidx.compose.ui.geometry.Offset(size.width - stroke / 2f, 0f),
-            end = androidx.compose.ui.geometry.Offset(size.width - stroke / 2f, size.height),
-            strokeWidth = stroke
-        )
-    }
-    if (bottom) m = m.drawBehind {
-        val stroke = 3.dp.toPx()
-        drawLine(
-            color = GridLine,
-            start = androidx.compose.ui.geometry.Offset(0f, size.height - stroke / 2f),
-            end = androidx.compose.ui.geometry.Offset(size.width, size.height - stroke / 2f),
-            strokeWidth = stroke
-        )
-    }
-    return m
-}
-
-@Composable
-private fun ModernActions(game: GameState) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-        ModernAction("↶", "Annulla") { game.undo() }
-        EraserAction { game.erase() }
-        ModernAction(if (game.notesMode) "✎ ON" else "✎", "Note", game.notesMode) { game.toggleNotes() }
-        ModernAction("♧", "Aiuti: ${game.hintsRemaining()}") { game.hint() }
-    }
-}
-
-@Composable
-private fun EraserAction(onClick: () -> Unit) {
-    Column(
-        modifier = Modifier.width(82.dp).clickable { onClick() },
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            Modifier.padding(top = 7.dp, bottom = 8.dp).size(width = 31.dp, height = 19.dp)
-                .rotate(-35f).border(3.dp, AppText, RoundedCornerShape(4.dp))
-        )
-        Text("Cancella", color = AppText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-private fun ModernAction(icon: String, label: String, active: Boolean = false, onClick: () -> Unit) {
-    Column(
-        modifier = Modifier.width(82.dp).clickable { onClick() },
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(icon, color = if (active) AppBlue else AppText, fontSize = 31.sp)
-        Text(label, color = AppText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-private fun NumberPad(game: GameState) {
-    Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-        for (n in 1..9) {
-            val left = 9 - game.placedCount(n)
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .then(if (left > 0) Modifier.clickable { game.input(n) } else Modifier)
-                    .padding(vertical = 5.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                if (left > 0) {
-                    Text("$n", fontWeight = FontWeight.Normal, fontSize = 34.sp, color = AppBlue)
-                    Text("$left", fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = Color(0xFF9AA3B2))
-                } else {
-                    Text("✓", fontWeight = FontWeight.Bold, fontSize = 29.sp, color = AppBlue)
-                    Text(" ", fontSize = 11.sp)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PauseOverlay(game: GameState) {
-    Box(
-        Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.94f)).clickable { game.paused = false },
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Ⅱ", color = AppBlue, fontSize = 64.sp)
-            Text("Partita in pausa", color = Color(0xFF263A58), fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(10.dp))
-            Text("Tocca per continuare", color = AppText, fontSize = 16.sp)
-        }
-    }
-}
-
-@Composable
-private fun FailureOverlay(game: GameState) {
-    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.48f)), contentAlignment = Alignment.Center) {
-        Column(
-            Modifier.padding(horizontal = 30.dp).fillMaxWidth().background(Color.White, RoundedCornerShape(26.dp)).padding(28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("Hai perso", color = Color(0xFF202332), fontSize = 34.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(14.dp))
-            Text(
-                "Hai perso la partita perché hai commesso 3 errori",
-                color = Color(0xFF303442), fontSize = 19.sp, lineHeight = 27.sp, textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(28.dp))
-            Button(
-                onClick = { game.retry() },
-                modifier = Modifier.fillMaxWidth().height(54.dp),
-                shape = RoundedCornerShape(27.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
-            ) { Text("Riprova", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
-            Spacer(Modifier.height(8.dp))
-            TextButton(
-                onClick = { game.reset() },
-                modifier = Modifier.fillMaxWidth().height(50.dp)
-            ) { Text("Cambia schema", color = AppBlue, fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
-        }
-    }
-}
-
-@Composable
-private fun WinOverlay(game: GameState, onMenu: () -> Unit, onChangeLevel: () -> Unit) {
-    Box(
-        Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.90f)),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 26.dp),
-            contentAlignment = Alignment.TopCenter
-        ) {
-            Surface(
-                modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
-                shape = RoundedCornerShape(28.dp),
-                color = Color.White,
-                shadowElevation = 12.dp
-            ) {
-                Column(
-                    modifier = Modifier.padding(start = 24.dp, top = 58.dp, end = 24.dp, bottom = 26.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        "Sudoku completato!",
-                        color = Color(0xFF263A58),
-                        fontSize = 27.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Livello ${game.difficulty.label.lowercase().replaceFirstChar { it.uppercase() }}",
-                        color = AppText,
-                        fontSize = 18.sp
-                    )
-                    Text(
-                        "Codice ${game.gameCode}",
-                        color = AppText,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "Punteggio ${game.score(true)}",
-                        color = AppBlue,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(Modifier.height(24.dp))
-                    Button(
-                        onClick = { game.reset() },
-                        modifier = Modifier.fillMaxWidth().height(54.dp),
-                        shape = RoundedCornerShape(27.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
-                    ) {
-                        Text("Gioca ancora", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedButton(
-                        onClick = onChangeLevel,
-                        modifier = Modifier.fillMaxWidth().height(54.dp),
-                        shape = RoundedCornerShape(27.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AppBlue)
-                    ) {
-                        Text("Cambia livello", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    Button(
-                        onClick = onMenu,
-                        modifier = Modifier.fillMaxWidth().height(54.dp),
-                        shape = RoundedCornerShape(27.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppBlueSoft,
-                            contentColor = AppBlue
-                        )
-                    ) {
-                        Text("Torna al menu", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-            }
-            Surface(
-                modifier = Modifier.size(82.dp),
-                shape = CircleShape,
-                color = AppBlue,
-                shadowElevation = 6.dp
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text("✓", color = Color.White, fontSize = 51.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

@@ -11,8 +11,8 @@ android {
         applicationId = "com.quaderno.sudoku"
         minSdk = 24
         targetSdk = 34
-        versionCode = 28
-        versionName = "1.27"
+        versionCode = 30
+        versionName = "1.29"
     }
 
     signingConfigs {
@@ -27,7 +27,8 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("permanentRelease")
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
