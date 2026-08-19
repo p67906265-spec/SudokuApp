@@ -1211,7 +1211,6 @@ private fun SettingsScreen(settings: SettingsStore, onBack: () -> Unit) {
             Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Paolo Free 1.0", color = AppBlue, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
-                Text("Sudoku Free – Versione 1.32", color = AppText, fontSize = 14.sp)
             }
         }
     }
