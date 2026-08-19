@@ -231,27 +231,22 @@ private fun SudokuAppRoot() {
     if (showExitDialog) {
         AlertDialog(
             onDismissRequest = { showExitDialog = false },
-            title = { Text("Partita in corso", fontWeight = FontWeight.Bold) },
-            text = { Text("Cosa vuoi fare?") },
+            title = { Text("Sei sicuro di uscire?", fontWeight = FontWeight.Bold) },
             confirmButton = {
-                TextButton(onClick = { showExitDialog = false }) { Text("Riprendi") }
-            },
-            dismissButton = {
-                Column(horizontalAlignment = Alignment.End) {
-                    TextButton(onClick = {
-                        stats.abandonActive()
-                        statsVersion++
-                        game.reset(game.difficulty)
-                        clearResumeGame()
-                        dailyGameDate = null
-                        showExitDialog = false
-                        screen = AppScreen.HOME
-                    }) { Text("Elimina") }
-                    TextButton(onClick = {
+                Button(
+                    onClick = {
                         saveResumeGame()
                         showExitDialog = false
-                        screen = if (dailyGameDate != null) AppScreen.DAILY else AppScreen.HOME
-                    }) { Text("Torna indietro") }
+                        screen = AppScreen.HOME
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
+                ) {
+                    Text("Sì", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showExitDialog = false }) {
+                    Text("No", fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -491,7 +486,9 @@ private fun HomeScreen(
             modifier = Modifier.fillMaxWidth().height(50.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = AppBlue,
+                containerColor = if (hasResume) Color(0xFF356DB9) else Color.Transparent,
+                contentColor = if (hasResume) Color.White else AppBlue,
+                disabledContainerColor = Color.Transparent,
                 disabledContentColor = AppText.copy(alpha = 0.45f)
             )
         ) { Text("R I P R E N D I", fontSize = 16.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold) }
