@@ -270,7 +270,7 @@ private fun SudokuAppRoot() {
                         textAlign = TextAlign.Center
                     )
                     Spacer(Modifier.height(8.dp))
-                    Text(completedDailyDate?.toString().orEmpty(), color = AppText, color = Color.White.copy(alpha = 0.78f), fontWeight = FontWeight.Bold)
+                    Text(completedDailyDate?.toString().orEmpty(), color = Color.White.copy(alpha = 0.78f), fontWeight = FontWeight.Bold)
                 }
             },
             text = {
@@ -280,15 +280,15 @@ private fun SudokuAppRoot() {
                 ) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("▥  Difficoltà", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Text(ChallengeCodes.difficulty.name, color = Color(0xFFD94FEA), fontWeight = FontWeight.Bold)
+                        Text(ChallengeCodes.difficulty(result.code)?.label ?: "Medio", color = Color(0xFFD94FEA), fontWeight = FontWeight.Bold)
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("◷  Tempo", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Text(formatTime(ChallengeCodes.time), color = Color(0xFF4B9DFF), fontWeight = FontWeight.Bold)
+                        Text(formatTime(result.seconds), color = Color(0xFF4B9DFF), fontWeight = FontWeight.Bold)
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("★  Punteggio", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Text(ChallengeCodes.score.toString(), color = Color(0xFF45D27A), fontWeight = FontWeight.Bold)
+                        Text(result.score.toString(), color = Color(0xFF45D27A), fontWeight = FontWeight.Bold)
                     }
                 }
             },
