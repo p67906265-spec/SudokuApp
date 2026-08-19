@@ -97,6 +97,7 @@ private fun SudokuAppRoot() {
             if (dailyGameDate != null) {
                 dailyResultSeconds = game.seconds
                 dailyResultScore = game.score(true)
+                delay(2500)
                 showDailyResultDialog = true
             }
         }
@@ -1112,6 +1113,13 @@ private fun SettingsScreen(settings: SettingsStore, onBack: () -> Unit) {
             SettingToggle("Suggerimenti intelligenti", settings.smartHints, settings::updateSmartHints)
             SettingToggle("Limite di 3 errori", settings.errorLimit, settings::updateErrorLimit)
             Text("Le preferenze vengono salvate e applicate subito.", color = AppText, fontSize = 14.sp, modifier = Modifier.padding(10.dp))
+            Spacer(Modifier.height(10.dp))
+            HorizontalDivider(color = Color(0xFFD5DCE8))
+            Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("PaoloFree 1.0", color = AppBlue, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Text("Sudoku Free – Versione 1.32", color = AppText, fontSize = 14.sp)
+            }
         }
     }
 }

@@ -52,6 +52,14 @@ fun SudokuScreen(
 ) {
     statsVersion
     BackHandler(onBack = onBack)
+    var showWinSummary by remember(game.generation) { mutableStateOf(false) }
+    LaunchedEffect(game.won, game.generation) {
+        showWinSummary = false
+        if (game.won) {
+            delay(2500)
+            showWinSummary = true
+        }
+    }
 
     // timer: riparte a ogni nuova partita, si ferma automaticamente a vittoria
     LaunchedEffect(game.generation, game.won) {
@@ -105,8 +113,10 @@ fun SudokuScreen(
 
         if (game.paused) PauseOverlay(game)
         if (game.won) {
-            ConfettiOverlay()
-            WinOverlay(game, onMenu = onBack, onChangeLevel = onChangeLevel)
+            FireworksOverlay()
+            if (showWinSummary) {
+                WinOverlay(game, onMenu = onBack, onChangeLevel = onChangeLevel)
+            }
         }
         if (game.failed()) FailureOverlay(game, onExit = onBack)
     }
@@ -395,38 +405,44 @@ private fun FailureOverlay(game: GameState, onExit: () -> Unit) {
 }
 
 @Composable
-private fun ConfettiOverlay() {
+private fun FireworksOverlay() {
     val progress = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         progress.snapTo(0f)
-        progress.animateTo(1f, animationSpec = tween(durationMillis = 1500, easing = LinearEasing))
+        progress.animateTo(1f, animationSpec = tween(durationMillis = 2400, easing = LinearEasing))
     }
-    val pieces = remember {
-        List(90) { i ->
-            val angle = ((i * 137) % 360) * (Math.PI / 180.0)
-            val speed = 150f + (i * 47 % 230)
-            val x = kotlin.math.cos(angle).toFloat() * speed
-            val y = kotlin.math.sin(angle).toFloat() * speed - 70f
-            Triple(x, y, i % 5)
-        }
+    val colors = listOf(AppBlue, Color(0xFFFFC32D), Color(0xFF46B7EB), Color(0xFFE86A92), Color(0xFF62C370), Color.White)
+    val bursts = remember {
+        listOf(
+            Triple(-105f, -180f, 0.00f),
+            Triple(105f, -120f, 0.18f),
+            Triple(-45f, 40f, 0.38f),
+            Triple(125f, 95f, 0.55f),
+            Triple(-125f, 145f, 0.68f)
+        )
     }
-    val colors = listOf(AppBlue, Color(0xFFFFC32D), Color(0xFF46B7EB), Color(0xFFE86A92), Color(0xFF62C370))
-    Box(Modifier.fillMaxSize()) {
-        pieces.forEachIndexed { i, piece ->
-            val t = progress.value
-            val gravity = 260f * t * t
-            Box(
-                Modifier
-                    .align(Alignment.Center)
-                    .graphicsLayer {
-                        translationX = piece.first * t
-                        translationY = piece.second * t + gravity
-                        rotationZ = i * 23f + 540f * t
-                        alpha = (1f - (t - 0.70f).coerceAtLeast(0f) / 0.30f).coerceIn(0f, 1f)
-                    }
-                    .size(if (i % 3 == 0) 10.dp else 7.dp, if (i % 2 == 0) 15.dp else 10.dp)
-                    .background(colors[piece.third], RoundedCornerShape(2.dp))
-            )
+    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.12f))) {
+        bursts.forEachIndexed { burstIndex, burst ->
+            val local = ((progress.value - burst.third) / 0.32f).coerceIn(0f, 1f)
+            if (local > 0f && local < 1f) {
+                repeat(28) { ray ->
+                    val angle = (ray * (360f / 28f) + burstIndex * 11f) * (Math.PI / 180.0)
+                    val distance = (55f + (ray % 5) * 11f) * local
+                    val fade = (1f - local).coerceIn(0f, 1f)
+                    Box(
+                        Modifier
+                            .align(Alignment.Center)
+                            .graphicsLayer {
+                                translationX = burst.first + kotlin.math.cos(angle).toFloat() * distance
+                                translationY = burst.second + kotlin.math.sin(angle).toFloat() * distance + 18f * local * local
+                                alpha = fade
+                                rotationZ = ray * 13f
+                            }
+                            .size(width = 4.dp, height = 13.dp)
+                            .background(colors[(ray + burstIndex) % colors.size], RoundedCornerShape(3.dp))
+                    )
+                }
+            }
         }
     }
 }
