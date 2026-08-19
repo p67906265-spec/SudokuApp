@@ -100,7 +100,10 @@ fun SudokuScreen(
         }
 
         if (game.paused) PauseOverlay(game)
-        if (game.won) WinOverlay(game, onMenu = onBack, onChangeLevel = onChangeLevel)
+        if (game.won) {
+            ConfettiOverlay()
+            WinOverlay(game, onMenu = onBack, onChangeLevel = onChangeLevel)
+        }
         if (game.failed()) FailureOverlay(game)
     }
 }
@@ -384,6 +387,23 @@ private fun FailureOverlay(game: GameState) {
 }
 
 @Composable
+private fun ConfettiOverlay() {
+    val pieces = remember { List(42) { i -> Triple((i * 37 % 100) / 100f, (i * 53 % 100) / 100f, i % 4) } }
+    Box(Modifier.fillMaxSize()) {
+        pieces.forEachIndexed { i, p ->
+            val color = listOf(AppBlue, Color(0xFFFFC32D), Color(0xFF46B7EB), Color(0xFFE86A92))[p.third]
+            Box(
+                Modifier
+                    .offset(x = (p.first * 360).dp, y = (p.second * 620).dp)
+                    .size(if (i % 2 == 0) 8.dp else 6.dp, 13.dp)
+                    .rotate((i * 29).toFloat())
+                    .background(color, RoundedCornerShape(2.dp))
+            )
+        }
+    }
+}
+
+@Composable
 private fun WinOverlay(game: GameState, onMenu: () -> Unit, onChangeLevel: () -> Unit) {
     Box(
         Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.90f)),
@@ -404,7 +424,7 @@ private fun WinOverlay(game: GameState, onMenu: () -> Unit, onChangeLevel: () ->
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        "Sudoku completato!",
+                        "Complimenti!",
                         color = Color(0xFF263A58),
                         fontSize = 27.sp,
                         fontWeight = FontWeight.Bold,

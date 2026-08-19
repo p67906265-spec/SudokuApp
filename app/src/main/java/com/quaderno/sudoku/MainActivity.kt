@@ -72,6 +72,10 @@ private fun SudokuAppRoot() {
     var screen by remember { mutableStateOf(AppScreen.HOME) }
     var showLevels by remember { mutableStateOf(false) }
     var showDailyResumeDialog by remember { mutableStateOf(false) }
+    var showExitDialog by remember { mutableStateOf(false) }
+    var showIntro by remember { mutableStateOf(true) }
+    var completedDailyResult by remember { mutableStateOf<ChallengeResult?>(null) }
+    var completedDailyDate by remember { mutableStateOf<LocalDate?>(null) }
     var pendingDailyDate by remember { mutableStateOf<LocalDate?>(null) }
     var dailyGameDate by remember { mutableStateOf<LocalDate?>(null) }
     var dailySelectFirstAvailable by remember { mutableStateOf(false) }
@@ -121,13 +125,9 @@ private fun SudokuAppRoot() {
             game,
             statsVersion = statsVersion,
             onBack = {
-                if (dailyGameDate != null && !game.won) {
-                    // La sfida resta in memoria: il pannello verrà mostrato
-                    // soltanto quando l'utente selezionerà di nuovo quel giorno.
-                    screen = AppScreen.DAILY
-                } else {
-                    if (!game.won) stats.abandonActive()
-                    statsVersion++
+                if (!game.won) showExitDialog = true
+                else {
+                    dailyGameDate = null
                     screen = AppScreen.HOME
                 }
             },
@@ -157,6 +157,10 @@ private fun SudokuAppRoot() {
             statsVersion = statsVersion,
             selectFirstAvailable = dailySelectFirstAvailable,
             onBack = { screen = AppScreen.HOME },
+            onCompleted = { date, result ->
+                completedDailyDate = date
+                completedDailyResult = result
+            },
             onPlay = { code ->
                 dailySelectFirstAvailable = false
                 val selectedDailyDate = LocalDate.now().let { today ->
@@ -176,6 +180,55 @@ private fun SudokuAppRoot() {
                     screen = AppScreen.GAME
                 }
             }
+        )
+    }
+
+    if (showIntro) {
+        SudokuIntroAnimation { showIntro = false }
+    }
+
+    if (showExitDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitDialog = false },
+            title = { Text("Partita in corso", fontWeight = FontWeight.Bold) },
+            text = { Text("Cosa vuoi fare?") },
+            confirmButton = {
+                TextButton(onClick = { showExitDialog = false }) { Text("Riprendi") }
+            },
+            dismissButton = {
+                Column(horizontalAlignment = Alignment.End) {
+                    TextButton(onClick = {
+                        stats.abandonActive()
+                        statsVersion++
+                        game.reset(game.difficulty)
+                        dailyGameDate = null
+                        showExitDialog = false
+                        screen = AppScreen.HOME
+                    }) { Text("Elimina") }
+                    TextButton(onClick = {
+                        showExitDialog = false
+                        screen = if (dailyGameDate != null) AppScreen.DAILY else AppScreen.HOME
+                    }) { Text("Torna indietro") }
+                }
+            }
+        )
+    }
+
+    completedDailyResult?.let { result ->
+        AlertDialog(
+            onDismissRequest = { completedDailyResult = null; completedDailyDate = null },
+            shape = RoundedCornerShape(26.dp),
+            containerColor = Color.White,
+            title = { Text("Gioco del giorno completato", fontWeight = FontWeight.Bold, color = Color(0xFF263A58)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(completedDailyDate?.toString().orEmpty(), color = AppText)
+                    ResultLine("Difficoltà", ChallengeCodes.difficulty(result.code)?.label ?: "Medio")
+                    ResultLine("Tempo", formatTime(result.seconds))
+                    ResultLine("Punteggio", result.score.toString())
+                }
+            },
+            confirmButton = { TextButton(onClick = { completedDailyResult = null; completedDailyDate = null }) { Text("Chiudi") } }
         )
     }
 
@@ -466,6 +519,7 @@ private fun DailyChallengeScreen(
     statsVersion: Int,
     selectFirstAvailable: Boolean,
     onBack: () -> Unit,
+    onCompleted: (LocalDate, ChallengeResult) -> Unit,
     onPlay: (String) -> Unit
 ) {
     statsVersion
@@ -548,8 +602,15 @@ private fun DailyChallengeScreen(
                                             }
                                         )
                                         .then(
-                                            if (!completed && !isFuture) Modifier.clickable { selectedDate = month.atDay(day) }
-                                            else Modifier
+                                            when {
+                                                completed -> Modifier.clickable {
+                                                    val date = month.atDay(day)
+                                                    val result = ChallengeCodes.dailyCodes(date).mapNotNull { stats.challengeResult(it) }.firstOrNull()
+                                                    if (result != null) onCompleted(date, result)
+                                                }
+                                                !isFuture -> Modifier.clickable { selectedDate = month.atDay(day) }
+                                                else -> Modifier
+                                            }
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -582,6 +643,45 @@ private fun DailyChallengeScreen(
                 Text(if (selectedDate == null) "Sfide completate" else "Gioca", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(10.dp))
+        }
+    }
+}
+
+@Composable
+private fun ResultLine(label: String, value: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = AppText, fontWeight = FontWeight.SemiBold)
+        Text(value, color = AppBlue, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun SudokuIntroAnimation(onFinished: () -> Unit) {
+    var filled by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        repeat(18) { delay(65); filled++ }
+        delay(350)
+        onFinished()
+    }
+    Box(Modifier.fillMaxSize().background(Color(0xFFF7F8FC)), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("Sudoku Free", color = AppBlue, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(24.dp))
+            Column(Modifier.size(216.dp).border(2.dp, GridLine)) {
+                repeat(9) { r ->
+                    Row(Modifier.weight(1f)) {
+                        repeat(9) { c ->
+                            val i = r * 9 + c
+                            val show = ((i * 17 + 11) % 81) < filled * 3
+                            Box(Modifier.weight(1f).fillMaxHeight().border(.35.dp, CellLine), contentAlignment = Alignment.Center) {
+                                if (show) Text("${(r * 3 + r / 3 + c) % 9 + 1}", color = AppBlue, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+            Text("Preparati a giocare", color = AppText, fontSize = 16.sp)
         }
     }
 }
