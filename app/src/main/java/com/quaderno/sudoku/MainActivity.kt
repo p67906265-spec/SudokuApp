@@ -231,7 +231,9 @@ private fun SudokuAppRoot() {
     if (showExitDialog) {
         AlertDialog(
             onDismissRequest = { showExitDialog = false },
-            title = { Text("Sei sicuro di uscire?", fontWeight = FontWeight.Bold) },
+            containerColor = Color(0xFF061F31),
+            shape = RoundedCornerShape(28.dp),
+            title = { Text("Sei sicuro di uscire?", color = Color.White, fontWeight = FontWeight.Bold) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -245,8 +247,11 @@ private fun SudokuAppRoot() {
                 }
             },
             dismissButton = {
-                OutlinedButton(onClick = { showExitDialog = false }) {
-                    Text("No", fontWeight = FontWeight.Bold)
+                OutlinedButton(
+                    onClick = { showExitDialog = false },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                ) {
+                    Text("No", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
         )

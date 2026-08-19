@@ -145,7 +145,6 @@ private fun ModernTopBar(game: GameState, onBack: () -> Unit, onSettings: () -> 
 @Composable
 private fun ModernStats(game: GameState) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-        ModernStat("Oggi", "★ 0")
         ModernStat("Difficoltà", game.difficulty.label.lowercase().replaceFirstChar { it.uppercase() })
         ModernStat("Punteggio", "${game.score()}")
         ModernStat("Errori", game.errorLabel())
