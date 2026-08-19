@@ -315,12 +315,12 @@ private fun ColorAction(icon: String, label: String, color: Color, active: Boole
     ) {
         Box(
             modifier = Modifier
-                .size(58.dp)
+                .size(48.dp)
                 .background(if (active) color.copy(alpha = 0.82f) else color, CircleShape)
-                .border(4.dp, color.copy(alpha = 0.14f), CircleShape),
+                .border(3.dp, color.copy(alpha = 0.14f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Text(icon, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+            Text(icon, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(7.dp))
         Text(label, color = AppText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
@@ -406,42 +406,26 @@ private fun FireworksOverlay() {
         progress.snapTo(0f)
         progress.animateTo(1f, animationSpec = tween(durationMillis = 3400, easing = LinearEasing))
     }
-    val colors = listOf(AppBlue, Color(0xFFFFC32D), Color(0xFF46B7EB), Color(0xFFE86A92), Color(0xFF62C370), Color(0xFFFF8A3D), Color.White)
-    val bursts = remember {
-        listOf(
-            Triple(-135f, -260f, 0.00f), Triple(115f, -235f, 0.07f),
-            Triple(-35f, -145f, 0.15f), Triple(145f, -75f, 0.23f),
-            Triple(-150f, -15f, 0.31f), Triple(45f, 35f, 0.39f),
-            Triple(155f, 95f, 0.47f), Triple(-85f, 145f, 0.55f),
-            Triple(20f, 210f, 0.63f), Triple(-150f, 265f, 0.70f),
-            Triple(135f, 300f, 0.76f)
-        )
-    }
-    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.10f))) {
-        bursts.forEachIndexed { burstIndex, burst ->
-            val local = ((progress.value - burst.third) / 0.25f).coerceIn(0f, 1f)
-            if (local > 0f && local < 1f) {
-                repeat(56) { ray ->
-                    val angle = (ray * (360f / 56f) + burstIndex * 9f) * (Math.PI / 180.0)
-                    val distance = (80f + (ray % 7) * 14f) * local
-                    val fade = (1f - local).coerceIn(0f, 1f)
-                    val pieceW = if (ray % 3 == 0) 7.dp else 5.dp
-                    val pieceH = if (ray % 4 == 0) 20.dp else 15.dp
-                    Box(
-                        Modifier
-                            .align(Alignment.Center)
-                            .graphicsLayer {
-                                translationX = burst.first + kotlin.math.cos(angle).toFloat() * distance
-                                translationY = burst.second + kotlin.math.sin(angle).toFloat() * distance + 24f * local * local
-                                alpha = fade
-                                rotationZ = ray * 17f
-                                scaleX = 1f + (1f - local) * 0.35f
-                                scaleY = 1f + (1f - local) * 0.35f
-                            }
-                            .size(width = pieceW, height = pieceH)
-                            .background(colors[(ray + burstIndex) % colors.size], RoundedCornerShape(4.dp))
-                    )
-                }
+    val colors = listOf(Color(0xFFFFC928), Color(0xFFFF5A8A), Color(0xFF4EA5FF), Color(0xFF54D67A), Color(0xFFFF8A3D), Color(0xFFB86CFF), Color.White)
+    val bursts = remember { listOf(
+        Triple(-130f,-250f,0.00f), Triple(120f,-225f,0.06f), Triple(-25f,-155f,0.13f),
+        Triple(145f,-75f,0.20f), Triple(-145f,-30f,0.27f), Triple(45f,30f,0.34f),
+        Triple(145f,100f,0.41f), Triple(-95f,145f,0.48f), Triple(20f,210f,0.55f),
+        Triple(-145f,270f,0.62f), Triple(130f,295f,0.68f)
+    ) }
+    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.16f))) {
+        bursts.forEachIndexed { bi, b ->
+            val local = ((progress.value-b.third)/0.30f).coerceIn(0f,1f)
+            if (local > 0f && local < 1f) repeat(72) { i ->
+                val a=(i*(360f/72f)+bi*11f)*(Math.PI/180.0)
+                val d=(105f+(i%9)*15f)*local
+                val fade=(1f-local).coerceIn(0f,1f)
+                val dot=if(i%8==0) 10.dp else if(i%3==0) 7.dp else 5.dp
+                Box(Modifier.align(Alignment.Center).graphicsLayer {
+                    translationX=b.first+kotlin.math.cos(a).toFloat()*d
+                    translationY=b.second+kotlin.math.sin(a).toFloat()*d+28f*local*local
+                    alpha=fade; scaleX=1.15f-local*0.25f; scaleY=scaleX
+                }.size(dot).background(colors[(i+bi)%colors.size], CircleShape))
             }
         }
     }
@@ -449,92 +433,31 @@ private fun FireworksOverlay() {
 
 @Composable
 private fun WinOverlay(game: GameState, onMenu: () -> Unit, onChangeLevel: () -> Unit) {
-    Box(
-        Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.90f)),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 26.dp),
-            contentAlignment = Alignment.TopCenter
-        ) {
-            Surface(
-                modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
-                shape = RoundedCornerShape(28.dp),
-                color = Color.White,
-                shadowElevation = 12.dp
-            ) {
-                Column(
-                    modifier = Modifier.padding(start = 24.dp, top = 58.dp, end = 24.dp, bottom = 26.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        "Complimenti!",
-                        color = Color(0xFF263A58),
-                        fontSize = 27.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Livello ${game.difficulty.label.lowercase().replaceFirstChar { it.uppercase() }}",
-                        color = AppText,
-                        fontSize = 18.sp
-                    )
-                    Text(
-                        "Codice ${game.gameCode}",
-                        color = AppText,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "Punteggio ${game.score(true)}",
-                        color = AppBlue,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(Modifier.height(24.dp))
-                    Button(
-                        onClick = { game.reset() },
-                        modifier = Modifier.fillMaxWidth().height(54.dp),
-                        shape = RoundedCornerShape(27.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
-                    ) {
-                        Text("Gioca ancora", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedButton(
-                        onClick = onChangeLevel,
-                        modifier = Modifier.fillMaxWidth().height(54.dp),
-                        shape = RoundedCornerShape(27.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AppBlue)
-                    ) {
-                        Text("Cambia livello", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    Button(
-                        onClick = onMenu,
-                        modifier = Modifier.fillMaxWidth().height(54.dp),
-                        shape = RoundedCornerShape(27.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppBlueSoft,
-                            contentColor = AppBlue
-                        )
-                    ) {
-                        Text("Torna al menu", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-            }
-            Surface(
-                modifier = Modifier.size(82.dp),
-                shape = CircleShape,
-                color = AppBlue,
-                shadowElevation = 6.dp
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text("✓", color = Color.White, fontSize = 51.sp, fontWeight = FontWeight.Bold)
+    val m=(game.seconds/60).toString().padStart(2,'0'); val sec=(game.seconds%60).toString().padStart(2,'0')
+    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha=.58f)), contentAlignment=Alignment.Center) {
+        Surface(Modifier.fillMaxWidth().padding(horizontal=28.dp), shape=RoundedCornerShape(24.dp), color=Color(0xFF071B2C), shadowElevation=14.dp, border=androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF168BFF))) {
+            Column(Modifier.padding(24.dp), horizontalAlignment=Alignment.CenterHorizontally) {
+                Text("CONGRATULAZIONI! ✨", color=Color(0xFFFFC83D), fontSize=25.sp, fontWeight=FontWeight.Bold)
+                Text("Hai completato il Sudoku!", color=Color.White, fontSize=16.sp)
+                Spacer(Modifier.height(10.dp)); Text("🏆", fontSize=52.sp); Spacer(Modifier.height(8.dp))
+                SummaryRow("◷  Tempo", "$m:$sec", Color(0xFF3EA2FF))
+                SummaryRow("★  Punteggio", "${game.score(true)}", Color(0xFF45D66F))
+                SummaryRow("◎  Errori", "${game.mistakes}", Color(0xFFFF4D55))
+                SummaryRow("▥  Difficoltà", game.difficulty.label, Color(0xFFD65CFF))
+                Spacer(Modifier.height(18.dp))
+                Button({game.reset()}, Modifier.fillMaxWidth().height(52.dp), shape=RoundedCornerShape(14.dp), colors=ButtonDefaults.buttonColors(containerColor=Color(0xFF1477E8))) { Text("▶  Nuovo Gioco", fontWeight=FontWeight.Bold) }
+                Spacer(Modifier.height(10.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                    OutlinedButton(onChangeLevel, Modifier.weight(1f), border=androidx.compose.foundation.BorderStroke(1.dp,Color(0xFF168BFF))) { Text("Livello", color=Color.White) }
+                    OutlinedButton(onMenu, Modifier.weight(1f), border=androidx.compose.foundation.BorderStroke(1.dp,Color(0xFF168BFF))) { Text("Menu", color=Color.White) }
                 }
             }
         }
+    }
+}
+
+@Composable private fun SummaryRow(label:String, value:String, valueColor:Color) {
+    Row(Modifier.fillMaxWidth().padding(vertical=7.dp), horizontalArrangement=Arrangement.SpaceBetween) {
+        Text(label,color=Color.White,fontSize=16.sp,fontWeight=FontWeight.SemiBold); Text(value,color=valueColor,fontSize=16.sp,fontWeight=FontWeight.Bold)
     }
 }

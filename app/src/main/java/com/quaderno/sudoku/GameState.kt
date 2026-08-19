@@ -94,6 +94,36 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
         history.clear()
     }
 
+
+    fun restoreSaved(
+        savedDifficulty: SudokuEngine.Difficulty,
+        savedCode: String,
+        savedBoard: IntArray,
+        savedNotes: List<List<Int>>,
+        savedMistakes: Int,
+        savedHints: Int,
+        savedSeconds: Int,
+        savedNotesMode: Boolean
+    ) {
+        reset(savedDifficulty, savedCode)
+        if (savedBoard.size == 81) {
+            board.clear(); board.addAll(savedBoard.toList())
+        }
+        notes.forEachIndexed { i, cell ->
+            cell.clear()
+            savedNotes.getOrNull(i)?.let(cell::addAll)
+        }
+        mistakes = savedMistakes
+        hintsUsed = savedHints.coerceIn(0, 2)
+        seconds = savedSeconds.coerceAtLeast(0)
+        notesMode = savedNotesMode
+        selected = -1
+        won = false
+        paused = false
+        history.clear()
+        generation++
+    }
+
     fun retry() {
         board.clear(); board.addAll(startingBoard.toList())
         notes.forEach { it.clear() }

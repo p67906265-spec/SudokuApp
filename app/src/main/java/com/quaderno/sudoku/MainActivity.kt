@@ -68,6 +68,8 @@ private fun SudokuAppRoot() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val stats = remember { StatsStore(context) }
     val settings = remember { SettingsStore(context) }
+    val resumePrefs = remember { context.getSharedPreferences("resume_game", Context.MODE_PRIVATE) }
+    var hasResumeGame by remember { mutableStateOf(resumePrefs.getBoolean("active", false)) }
     var statsVersion by remember { mutableStateOf(0) }
     var screen by remember { mutableStateOf(AppScreen.HOME) }
     var showLevels by remember { mutableStateOf(false) }
@@ -85,8 +87,44 @@ private fun SudokuAppRoot() {
     var newlyUnlockedLevel by remember { mutableStateOf<SudokuEngine.Difficulty?>(null) }
     val game = remember { GameState(SudokuEngine.Difficulty.MEDIO, settings) }
 
+    fun clearResumeGame() {
+        resumePrefs.edit().clear().apply()
+        hasResumeGame = false
+    }
+    fun saveResumeGame() {
+        if (game.won || game.failed()) { clearResumeGame(); return }
+        val noteText = game.notes.joinToString("|") { it.sorted().joinToString("") }
+        resumePrefs.edit()
+            .putBoolean("active", true)
+            .putInt("difficulty", game.difficulty.ordinal)
+            .putString("code", game.gameCode)
+            .putString("board", game.board.joinToString(","))
+            .putString("notes", noteText)
+            .putInt("mistakes", game.mistakes)
+            .putInt("hints", game.hintsUsed)
+            .putInt("seconds", game.seconds)
+            .putBoolean("notesMode", game.notesMode)
+            .apply()
+        hasResumeGame = true
+    }
+    fun restoreResumeGame(): Boolean {
+        if (!resumePrefs.getBoolean("active", false)) return false
+        val code = resumePrefs.getString("code", null) ?: return false
+        val board = resumePrefs.getString("board", "").orEmpty().split(',').mapNotNull { it.toIntOrNull() }.toIntArray()
+        if (board.size != 81) { clearResumeGame(); return false }
+        val notes = resumePrefs.getString("notes", "").orEmpty().split('|').let { parts ->
+            List(81) { i -> parts.getOrNull(i).orEmpty().mapNotNull { ch -> ch.digitToIntOrNull() }.filter { it in 1..9 } }
+        }
+        val difficulty = SudokuEngine.Difficulty.values().getOrElse(resumePrefs.getInt("difficulty", 1)) { SudokuEngine.Difficulty.MEDIO }
+        game.restoreSaved(difficulty, code, board, notes, resumePrefs.getInt("mistakes", 0), resumePrefs.getInt("hints", 0), resumePrefs.getInt("seconds", 0), resumePrefs.getBoolean("notesMode", false))
+        dailyGameDate = null
+        screen = AppScreen.GAME
+        return true
+    }
+
     LaunchedEffect(game.won, game.generation) {
         if (game.won) {
+            clearResumeGame()
             val nextLevel = SudokuEngine.Difficulty.values().getOrNull(game.difficulty.ordinal + 1)
             val wasNextLevelUnlocked = nextLevel?.let(stats::isUnlocked) ?: true
             stats.complete(game)
@@ -97,7 +135,7 @@ private fun SudokuAppRoot() {
             if (dailyGameDate != null) {
                 dailyResultSeconds = game.seconds
                 dailyResultScore = game.score(true)
-                delay(2500)
+                delay(3500)
                 showDailyResultDialog = true
             }
         }
@@ -113,6 +151,8 @@ private fun SudokuAppRoot() {
     when (screen) {
         AppScreen.HOME -> HomeScreen(
             onPlay = { showLevels = true },
+            hasResume = hasResumeGame,
+            onResume = { restoreResumeGame() },
             onDaily = {
                 dailySelectFirstAvailable = false
                 screen = AppScreen.DAILY
@@ -202,11 +242,13 @@ private fun SudokuAppRoot() {
                         stats.abandonActive()
                         statsVersion++
                         game.reset(game.difficulty)
+                        clearResumeGame()
                         dailyGameDate = null
                         showExitDialog = false
                         screen = AppScreen.HOME
                     }) { Text("Elimina") }
                     TextButton(onClick = {
+                        saveResumeGame()
                         showExitDialog = false
                         screen = if (dailyGameDate != null) AppScreen.DAILY else AppScreen.HOME
                     }) { Text("Torna indietro") }
@@ -239,6 +281,7 @@ private fun SudokuAppRoot() {
             statsVersion = statsVersion,
             onDismiss = { showLevels = false },
             onSelected = {
+                clearResumeGame()
                 game.reset(it)
                 showLevels = false
                 screen = AppScreen.GAME
@@ -417,6 +460,8 @@ private fun UnlockOverlay(
 @Composable
 private fun HomeScreen(
     onPlay: () -> Unit,
+    hasResume: Boolean,
+    onResume: () -> Unit,
     onDaily: () -> Unit,
     onSettings: () -> Unit,
     onTutorial: () -> Unit,
@@ -439,6 +484,15 @@ private fun HomeScreen(
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF356DB9))
         ) { Text("G I O C A", fontSize = 19.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold) }
+        if (hasResume) {
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = onResume,
+                modifier = Modifier.fillMaxWidth().height(54.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = AppBlue)
+            ) { Text("R I P R E N D I", fontSize = 17.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold) }
+        }
 
         Spacer(Modifier.height(24.dp))
         val today = LocalDate.now()
@@ -1116,7 +1170,7 @@ private fun SettingsScreen(settings: SettingsStore, onBack: () -> Unit) {
             Spacer(Modifier.height(10.dp))
             HorizontalDivider(color = Color(0xFFD5DCE8))
             Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("PaoloFree 1.0", color = AppBlue, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text("Paolo Free 1.0", color = AppBlue, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
                 Text("Sudoku Free – Versione 1.32", color = AppText, fontSize = 14.sp)
             }
