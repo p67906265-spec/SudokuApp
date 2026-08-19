@@ -255,18 +255,53 @@ private fun SudokuAppRoot() {
     completedDailyResult?.let { result ->
         AlertDialog(
             onDismissRequest = { completedDailyResult = null; completedDailyDate = null },
-            shape = RoundedCornerShape(26.dp),
-            containerColor = Color.White,
-            title = { Text("Gioco del giorno completato", fontWeight = FontWeight.Bold, color = Color(0xFF263A58)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(completedDailyDate?.toString().orEmpty(), color = AppText)
-                    ResultLine("Difficoltà", ChallengeCodes.difficulty(result.code)?.label ?: "Medio")
-                    ResultLine("Tempo", formatTime(result.seconds))
-                    ResultLine("Punteggio", result.score.toString())
+            containerColor = Color(0xFF061F31),
+            shape = RoundedCornerShape(28.dp),
+            title = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        "GIOCO DEL GIORNO\nCOMPLETATO",
+                        color = Color(0xFFFFC83D),
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(completedDailyDate?.toString().orEmpty(), color = AppText, color = Color.White.copy(alpha = 0.78f), fontWeight = FontWeight.Bold)
                 }
             },
-            confirmButton = { TextButton(onClick = { completedDailyResult = null; completedDailyDate = null }) { Text("Chiudi") } }
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("▥  Difficoltà", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(ChallengeCodes.difficulty.name, color = Color(0xFFD94FEA), fontWeight = FontWeight.Bold)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("◷  Tempo", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(formatTime(ChallengeCodes.time), color = Color(0xFF4B9DFF), fontWeight = FontWeight.Bold)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("★  Punteggio", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(ChallengeCodes.score.toString(), color = Color(0xFF45D27A), fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { completedDailyResult = null; completedDailyDate = null },
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2186EA))
+                ) {
+                    Text("Chiudi", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         )
     }
 
