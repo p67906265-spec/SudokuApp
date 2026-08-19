@@ -484,24 +484,26 @@ private fun HomeScreen(
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF356DB9))
         ) { Text("G I O C A", fontSize = 19.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold) }
-        if (hasResume) {
-            Spacer(Modifier.height(10.dp))
-            OutlinedButton(
-                onClick = onResume,
-                modifier = Modifier.fillMaxWidth().height(54.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = AppBlue)
-            ) { Text("R I P R E N D I", fontSize = 17.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold) }
-        }
+        Spacer(Modifier.height(10.dp))
+        OutlinedButton(
+            onClick = onResume,
+            enabled = hasResume,
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = AppBlue,
+                disabledContentColor = AppText.copy(alpha = 0.45f)
+            )
+        ) { Text("R I P R E N D I", fontSize = 16.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold) }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(18.dp))
         val today = LocalDate.now()
         val monthNames = listOf(
             "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
             "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"
         )
         Row(
-            modifier = Modifier.fillMaxWidth().height(104.dp)
+            modifier = Modifier.fillMaxWidth().height(92.dp)
                 .background(Color(0xFFEDF5FD), RoundedCornerShape(16.dp))
                 .border(1.dp, Color(0xFFD1E0F0), RoundedCornerShape(16.dp))
                 .clickable { onDaily() }.padding(horizontal = 18.dp),
@@ -510,11 +512,11 @@ private fun HomeScreen(
             Text("▦", color = AppBlue, fontSize = 45.sp, fontWeight = FontWeight.Light)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text("Sfida del giorno", color = Color(0xFF1D2738), fontSize = 22.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold)
+                Text("Sfida del giorno", color = Color(0xFF1D2738), fontSize = 20.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
                 Text("${today.dayOfMonth} ${monthNames[today.monthValue - 1]}", color = AppBlue, fontSize = 16.sp)
             }
-            Box(Modifier.width(1.dp).height(62.dp).background(Color(0xFFD2DDEB)))
+            Box(Modifier.width(1.dp).height(54.dp).background(Color(0xFFD2DDEB)))
             Spacer(Modifier.width(14.dp))
             Text("Apri", color = AppBlue, fontSize = 17.sp, fontFamily = FontFamily.Serif)
             Spacer(Modifier.width(8.dp))
