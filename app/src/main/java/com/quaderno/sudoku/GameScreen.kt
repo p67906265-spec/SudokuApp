@@ -56,7 +56,7 @@ fun SudokuScreen(
     LaunchedEffect(game.won, game.generation) {
         showWinSummary = false
         if (game.won) {
-            delay(2500)
+            delay(3500)
             showWinSummary = true
         }
     }
@@ -299,36 +299,31 @@ internal fun Modifier.thickEdge(right: Boolean, bottom: Boolean): Modifier {
 
 @Composable
 private fun ModernActions(game: GameState) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-        ModernAction("↶", "Annulla") { game.undo() }
-        EraserAction { game.erase() }
-        ModernAction(if (game.notesMode) "✎ ON" else "✎", "Note", game.notesMode) { game.toggleNotes() }
-        ModernAction("♧", "Aiuti: ${game.hintsRemaining()}") { game.hint() }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+        ColorAction("↶", "Annulla", Color(0xFFFF9F43)) { game.undo() }
+        ColorAction("▱", "Cancella", Color(0xFFFF5576)) { game.erase() }
+        ColorAction(if (game.notesMode) "✎" else "✎", "Note", Color(0xFF4B94F2), game.notesMode) { game.toggleNotes() }
+        ColorAction("♣", "Aiuti: ${game.hintsRemaining()}", Color(0xFF42C49A)) { game.hint() }
     }
 }
 
 @Composable
-private fun EraserAction(onClick: () -> Unit) {
+private fun ColorAction(icon: String, label: String, color: Color, active: Boolean = false, onClick: () -> Unit) {
     Column(
-        modifier = Modifier.width(82.dp).clickable { onClick() },
+        modifier = Modifier.width(86.dp).clickable { onClick() },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            Modifier.padding(top = 7.dp, bottom = 8.dp).size(width = 31.dp, height = 19.dp)
-                .rotate(-35f).border(3.dp, AppText, RoundedCornerShape(4.dp))
-        )
-        Text("Cancella", color = AppText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-private fun ModernAction(icon: String, label: String, active: Boolean = false, onClick: () -> Unit) {
-    Column(
-        modifier = Modifier.width(82.dp).clickable { onClick() },
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(icon, color = if (active) AppBlue else AppText, fontSize = 31.sp)
-        Text(label, color = AppText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            modifier = Modifier
+                .size(58.dp)
+                .background(if (active) color.copy(alpha = 0.82f) else color, CircleShape)
+                .border(4.dp, color.copy(alpha = 0.14f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(icon, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(7.dp))
+        Text(label, color = AppText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
     }
 }
 
@@ -409,37 +404,42 @@ private fun FireworksOverlay() {
     val progress = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         progress.snapTo(0f)
-        progress.animateTo(1f, animationSpec = tween(durationMillis = 2400, easing = LinearEasing))
+        progress.animateTo(1f, animationSpec = tween(durationMillis = 3400, easing = LinearEasing))
     }
-    val colors = listOf(AppBlue, Color(0xFFFFC32D), Color(0xFF46B7EB), Color(0xFFE86A92), Color(0xFF62C370), Color.White)
+    val colors = listOf(AppBlue, Color(0xFFFFC32D), Color(0xFF46B7EB), Color(0xFFE86A92), Color(0xFF62C370), Color(0xFFFF8A3D), Color.White)
     val bursts = remember {
         listOf(
-            Triple(-105f, -180f, 0.00f),
-            Triple(105f, -120f, 0.18f),
-            Triple(-45f, 40f, 0.38f),
-            Triple(125f, 95f, 0.55f),
-            Triple(-125f, 145f, 0.68f)
+            Triple(-135f, -260f, 0.00f), Triple(115f, -235f, 0.07f),
+            Triple(-35f, -145f, 0.15f), Triple(145f, -75f, 0.23f),
+            Triple(-150f, -15f, 0.31f), Triple(45f, 35f, 0.39f),
+            Triple(155f, 95f, 0.47f), Triple(-85f, 145f, 0.55f),
+            Triple(20f, 210f, 0.63f), Triple(-150f, 265f, 0.70f),
+            Triple(135f, 300f, 0.76f)
         )
     }
-    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.12f))) {
+    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.10f))) {
         bursts.forEachIndexed { burstIndex, burst ->
-            val local = ((progress.value - burst.third) / 0.32f).coerceIn(0f, 1f)
+            val local = ((progress.value - burst.third) / 0.25f).coerceIn(0f, 1f)
             if (local > 0f && local < 1f) {
-                repeat(28) { ray ->
-                    val angle = (ray * (360f / 28f) + burstIndex * 11f) * (Math.PI / 180.0)
-                    val distance = (55f + (ray % 5) * 11f) * local
+                repeat(56) { ray ->
+                    val angle = (ray * (360f / 56f) + burstIndex * 9f) * (Math.PI / 180.0)
+                    val distance = (80f + (ray % 7) * 14f) * local
                     val fade = (1f - local).coerceIn(0f, 1f)
+                    val pieceW = if (ray % 3 == 0) 7.dp else 5.dp
+                    val pieceH = if (ray % 4 == 0) 20.dp else 15.dp
                     Box(
                         Modifier
                             .align(Alignment.Center)
                             .graphicsLayer {
                                 translationX = burst.first + kotlin.math.cos(angle).toFloat() * distance
-                                translationY = burst.second + kotlin.math.sin(angle).toFloat() * distance + 18f * local * local
+                                translationY = burst.second + kotlin.math.sin(angle).toFloat() * distance + 24f * local * local
                                 alpha = fade
-                                rotationZ = ray * 13f
+                                rotationZ = ray * 17f
+                                scaleX = 1f + (1f - local) * 0.35f
+                                scaleY = 1f + (1f - local) * 0.35f
                             }
-                            .size(width = 4.dp, height = 13.dp)
-                            .background(colors[(ray + burstIndex) % colors.size], RoundedCornerShape(3.dp))
+                            .size(width = pieceW, height = pieceH)
+                            .background(colors[(ray + burstIndex) % colors.size], RoundedCornerShape(4.dp))
                     )
                 }
             }
