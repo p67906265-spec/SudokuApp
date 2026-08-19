@@ -6,7 +6,7 @@
         <item name="android:windowLightNavigationBar">true</item>
         <item name="android:windowBackground">#F7F8FC</item>
         <item name="android:windowSplashScreenBackground">#F7F8FC</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
-        <item name="android:windowSplashScreenIconBackgroundColor">#DCEBFA</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_transparent</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">#F7F8FC</item>
     </style>
 </resources>

@@ -6,6 +6,9 @@ import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontFamily
@@ -104,7 +108,7 @@ fun SudokuScreen(
             ConfettiOverlay()
             WinOverlay(game, onMenu = onBack, onChangeLevel = onChangeLevel)
         }
-        if (game.failed()) FailureOverlay(game)
+        if (game.failed()) FailureOverlay(game, onExit = onBack)
     }
 }
 
@@ -358,7 +362,7 @@ private fun PauseOverlay(game: GameState) {
 }
 
 @Composable
-private fun FailureOverlay(game: GameState) {
+private fun FailureOverlay(game: GameState, onExit: () -> Unit) {
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.48f)), contentAlignment = Alignment.Center) {
         Column(
             Modifier.padding(horizontal = 30.dp).fillMaxWidth().background(Color.White, RoundedCornerShape(26.dp)).padding(28.dp),
@@ -382,22 +386,46 @@ private fun FailureOverlay(game: GameState) {
                 onClick = { game.reset() },
                 modifier = Modifier.fillMaxWidth().height(50.dp)
             ) { Text("Cambia schema", color = AppBlue, fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
+            TextButton(
+                onClick = onExit,
+                modifier = Modifier.fillMaxWidth().height(50.dp)
+            ) { Text("Esci", color = AppText, fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
         }
     }
 }
 
 @Composable
 private fun ConfettiOverlay() {
-    val pieces = remember { List(42) { i -> Triple((i * 37 % 100) / 100f, (i * 53 % 100) / 100f, i % 4) } }
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        progress.snapTo(0f)
+        progress.animateTo(1f, animationSpec = tween(durationMillis = 1500, easing = LinearEasing))
+    }
+    val pieces = remember {
+        List(90) { i ->
+            val angle = ((i * 137) % 360) * (Math.PI / 180.0)
+            val speed = 150f + (i * 47 % 230)
+            val x = kotlin.math.cos(angle).toFloat() * speed
+            val y = kotlin.math.sin(angle).toFloat() * speed - 70f
+            Triple(x, y, i % 5)
+        }
+    }
+    val colors = listOf(AppBlue, Color(0xFFFFC32D), Color(0xFF46B7EB), Color(0xFFE86A92), Color(0xFF62C370))
     Box(Modifier.fillMaxSize()) {
-        pieces.forEachIndexed { i, p ->
-            val color = listOf(AppBlue, Color(0xFFFFC32D), Color(0xFF46B7EB), Color(0xFFE86A92))[p.third]
+        pieces.forEachIndexed { i, piece ->
+            val t = progress.value
+            val gravity = 260f * t * t
             Box(
                 Modifier
-                    .offset(x = (p.first * 360).dp, y = (p.second * 620).dp)
-                    .size(if (i % 2 == 0) 8.dp else 6.dp, 13.dp)
-                    .rotate((i * 29).toFloat())
-                    .background(color, RoundedCornerShape(2.dp))
+                    .align(Alignment.Center)
+                    .graphicsLayer {
+                        translationX = piece.first * t
+                        translationY = piece.second * t + gravity
+                        rotationZ = i * 23f + 540f * t
+                        alpha = (1f - (t - 0.70f).coerceAtLeast(0f) / 0.30f).coerceIn(0f, 1f)
+                    }
+                    .size(if (i % 3 == 0) 10.dp else 7.dp, if (i % 2 == 0) 15.dp else 10.dp)
+                    .background(colors[piece.third], RoundedCornerShape(2.dp))
             )
         }
     }
