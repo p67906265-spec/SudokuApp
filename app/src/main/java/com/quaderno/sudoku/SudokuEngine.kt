@@ -169,6 +169,8 @@ internal object ChallengeCodes {
 
     fun isDailyCode(date: LocalDate, code: String): Boolean = normalize(code) in dailyCodes(date)
 
+    fun lockedDaily(date: LocalDate): String = "ME-X${dailyBody(date)}"
+
     fun legacyDaily(date: LocalDate): String {
         val random = Random(date.toEpochDay().toInt())
         val body = buildString { repeat(6) { append(CHARS[random.nextInt(CHARS.length)]) } }

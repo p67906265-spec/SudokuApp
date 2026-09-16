@@ -97,7 +97,7 @@ fun SudokuScreen(
         ) {
             ModernTopBar(game, onBack, onSettings)
             Text(
-                "CODICE  ${game.gameCode}",
+                if (game.lockedChallengeMode) "🔒 ${tr("SFIDA NUMERO BLOCCATO")}" else "CODICE  ${game.gameCode}",
                 color = AppBlue,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
@@ -116,7 +116,7 @@ fun SudokuScreen(
         if (game.paused) PauseOverlay(game)
         if (game.won) {
             FireworksOverlay()
-            if (showWinSummary) {
+            if (showWinSummary && !game.lockedChallengeMode) {
                 WinOverlay(game, onMenu = onBack, onChangeLevel = onChangeLevel)
             }
         }
@@ -136,7 +136,10 @@ private fun ModernTopBar(game: GameState, onBack: () -> Unit, onSettings: () -> 
         Text(tr("‹"), color = AppBlue, fontSize = 48.sp, fontWeight = FontWeight.Light, modifier = Modifier.clickable { onBack() })
         Text("$m:$s", color = Color(0xFF263A58), fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            Text(tr("⟳"), color = AppBlue, fontSize = 38.sp, modifier = Modifier.clickable { game.reset() })
+            Text(tr("⟳"), color = AppBlue, fontSize = 38.sp, modifier = Modifier.clickable {
+                if (game.lockedChallengeMode) game.reset(game.difficulty, game.gameCode, lockedChallenge = true)
+                else game.reset()
+            })
             Text(if (game.paused) "▶" else "Ⅱ", color = AppBlue, fontSize = 30.sp,
                 modifier = Modifier.clickable { game.paused = !game.paused })
             Text(tr("⚙"), color = AppBlue, fontSize = 34.sp, modifier = Modifier.clickable { onSettings() })
@@ -343,7 +346,10 @@ private fun NumberPad(game: GameState) {
                     )
                     .then(
                         if (left > 0) Modifier.combinedClickable(
-                            onClick = { game.input(n) },
+                            onClick = {
+                                if (game.lockedChallengeMode) game.toggleLockedNumber(n)
+                                else game.input(n)
+                            },
                             onLongClick = { game.toggleLockedNumber(n) }
                         ) else Modifier
                     )

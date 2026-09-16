@@ -90,6 +90,11 @@ private fun SudokuAppRoot() {
     var dailyResultSeconds by remember { mutableStateOf(0) }
     var dailyResultScore by remember { mutableStateOf(0) }
     var dailyLeaderboard by remember { mutableStateOf(DailyLeaderboard()) }
+    var lockedChallengeDate by remember { mutableStateOf<LocalDate?>(null) }
+    var lockedChallengeSeconds by remember { mutableStateOf(0) }
+    var lockedChallengeMistakes by remember { mutableStateOf(0) }
+    var lockedLeaderboard by remember { mutableStateOf(DailyLeaderboard()) }
+    var showLockedResultDialog by remember { mutableStateOf(false) }
     var newlyUnlockedLevel by remember { mutableStateOf<SudokuEngine.Difficulty?>(null) }
     val game = remember { GameState(SudokuEngine.Difficulty.MEDIO, settings) }
 
@@ -110,6 +115,8 @@ private fun SudokuAppRoot() {
             .putInt("hints", game.hintsUsed)
             .putInt("seconds", game.seconds)
             .putBoolean("notesMode", game.notesMode)
+            .putBoolean("lockedChallenge", game.lockedChallengeMode)
+            .putString("lockedChallengeDate", lockedChallengeDate?.toString())
             .apply()
         hasResumeGame = true
     }
@@ -122,8 +129,12 @@ private fun SudokuAppRoot() {
             List(81) { i -> parts.getOrNull(i).orEmpty().mapNotNull { ch -> ch.digitToIntOrNull() }.filter { it in 1..9 } }
         }
         val difficulty = SudokuEngine.Difficulty.values().getOrElse(resumePrefs.getInt("difficulty", 1)) { SudokuEngine.Difficulty.MEDIO }
-        game.restoreSaved(difficulty, code, board, notes, resumePrefs.getInt("mistakes", 0), resumePrefs.getInt("hints", 0), resumePrefs.getInt("seconds", 0), resumePrefs.getBoolean("notesMode", false))
+        val savedLockedChallenge = resumePrefs.getBoolean("lockedChallenge", false)
+        game.restoreSaved(difficulty, code, board, notes, resumePrefs.getInt("mistakes", 0), resumePrefs.getInt("hints", 0), resumePrefs.getInt("seconds", 0), resumePrefs.getBoolean("notesMode", false), savedLockedChallenge)
         dailyGameDate = null
+        lockedChallengeDate = if (savedLockedChallenge) {
+            resumePrefs.getString("lockedChallengeDate", null)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        } else null
         screen = AppScreen.GAME
         return true
     }
@@ -138,7 +149,18 @@ private fun SudokuAppRoot() {
             if (nextLevel != null && !wasNextLevelUnlocked && stats.isUnlocked(nextLevel)) {
                 newlyUnlockedLevel = nextLevel
             }
-            if (dailyGameDate != null) {
+            if (lockedChallengeDate != null) {
+                lockedChallengeSeconds = game.seconds
+                lockedChallengeMistakes = game.mistakes
+                onlineLeaderboard.submitLockedAndLoad(
+                    date = lockedChallengeDate!!,
+                    name = settings.playerName,
+                    seconds = game.seconds,
+                    mistakes = game.mistakes
+                ) { lockedLeaderboard = it }
+                delay(3500)
+                showLockedResultDialog = true
+            } else if (dailyGameDate != null) {
                 stats.recordDailyCompletion(dailyGameDate!!, game.mistakes)
                 dailyResultSeconds = game.seconds
                 dailyResultScore = game.score(true)
@@ -183,6 +205,7 @@ private fun SudokuAppRoot() {
                 if (!game.won) showExitDialog = true
                 else {
                     dailyGameDate = null
+                    lockedChallengeDate = null
                     screen = AppScreen.HOME
                 }
             },
@@ -200,7 +223,15 @@ private fun SudokuAppRoot() {
             stats = stats,
             statsVersion = statsVersion,
             onBack = { screen = AppScreen.HOME },
+            onPlayLocked = {
+                val date = LocalDate.now()
+                lockedChallengeDate = date
+                dailyGameDate = null
+                game.reset(SudokuEngine.Difficulty.MEDIO, ChallengeCodes.lockedDaily(date), lockedChallenge = true)
+                screen = AppScreen.GAME
+            },
             onPlayCode = { code ->
+                lockedChallengeDate = null
                 ChallengeCodes.difficulty(code)?.let { level ->
                     game.reset(level, code)
                     screen = AppScreen.GAME
@@ -453,6 +484,68 @@ private fun SudokuAppRoot() {
                     shape = RoundedCornerShape(26.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
                 ) { Text(tr("Torna alle sfide"), fontSize = 17.sp, fontWeight = FontWeight.Bold) }
+            }
+        )
+    }
+
+    if (showLockedResultDialog) {
+        AlertDialog(
+            onDismissRequest = {},
+            containerColor = Color.White,
+            shape = RoundedCornerShape(26.dp),
+            title = {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("🔒", fontSize = 44.sp)
+                    Text(tr("Sfida Numero Bloccato"), color = Color(0xFF263A58), fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(tr("Errori"), color = AppText)
+                            Text("$lockedChallengeMistakes", color = Color(0xFFEF5574), fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(tr("Tempo"), color = AppText)
+                            Text(formatTime(lockedChallengeSeconds), color = AppBlue, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    HorizontalDivider(color = Color(0xFFDDE4EE))
+                    Spacer(Modifier.height(12.dp))
+                    Text(tr("Classifica"), color = Color(0xFF263A58), fontSize = 19.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterHorizontally))
+                    when {
+                        lockedLeaderboard.loading -> CircularProgressIndicator(color = AppBlue, modifier = Modifier.align(Alignment.CenterHorizontally).padding(12.dp).size(30.dp))
+                        lockedLeaderboard.error != null -> Text(tr(lockedLeaderboard.error!!), color = AppText, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(8.dp))
+                        else -> {
+                            Text(
+                                "${lockedLeaderboard.participants} ${tr("partecipanti")}  •  ${tr("Posizione")} ${lockedLeaderboard.position ?: "—"}",
+                                color = AppBlue, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterHorizontally)
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            lockedLeaderboard.top.forEachIndexed { index, entry ->
+                                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text("${index + 1}.", color = AppText, modifier = Modifier.width(28.dp), fontWeight = FontWeight.Bold)
+                                    Text(entry.name, color = Color(0xFF263A58), modifier = Modifier.weight(1f), maxLines = 1)
+                                    Text("${entry.mistakes} ${tr("errori")}  ${formatTime(entry.seconds)}", color = AppBlue, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLockedResultDialog = false
+                        lockedChallengeDate = null
+                        screen = AppScreen.CHALLENGES
+                    },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(26.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
+                ) { Text(tr("Torna alle sfide"), fontWeight = FontWeight.Bold) }
             }
         )
     }
@@ -930,6 +1023,7 @@ private fun ChallengeScreen(
     stats: StatsStore,
     statsVersion: Int,
     onBack: () -> Unit,
+    onPlayLocked: () -> Unit,
     onPlayCode: (String) -> Unit
 ) {
     statsVersion
@@ -959,6 +1053,25 @@ private fun ChallengeScreen(
             Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().clickable { onPlayLocked() },
+                shape = RoundedCornerShape(22.dp),
+                color = Color(0xFFE8F2FF),
+                border = androidx.compose.foundation.BorderStroke(1.dp, AppBlue.copy(alpha = 0.35f))
+            ) {
+                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier.size(54.dp).background(AppBlue, RoundedCornerShape(16.dp)),
+                        contentAlignment = Alignment.Center
+                    ) { Text("🔒", fontSize = 27.sp) }
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(tr("Sfida Numero Bloccato"), color = Color(0xFF25344B), fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                        Text(tr("Completa lo schema usando solo i numeri bloccati. Gli errori non fermano la partita."), color = AppText, fontSize = 13.sp)
+                    }
+                    Text("›", color = AppBlue, fontSize = 34.sp)
+                }
+            }
             Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(22.dp)).padding(20.dp)) {
                 Text(tr("Crea una sfida"), color = Color(0xFF25344B), fontSize = 21.sp, fontWeight = FontWeight.Bold)
                 Text(tr("Genera un codice e invialo a chi vuoi sfidare."), color = AppText, fontSize = 14.sp)

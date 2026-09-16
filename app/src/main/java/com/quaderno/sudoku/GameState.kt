@@ -52,6 +52,7 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
     var selected by mutableStateOf(-1)
     var notesMode by mutableStateOf(false)
     var lockedNumber by mutableStateOf<Int?>(null)
+    var lockedChallengeMode by mutableStateOf(false)
     var mistakes by mutableStateOf(0)
     var hintsUsed by mutableStateOf(0)
     var autoCompleted by mutableStateOf(false)
@@ -69,7 +70,11 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
 
     init { reset(difficulty) }
 
-    fun reset(newDifficulty: SudokuEngine.Difficulty = difficulty, requestedCode: String? = null) {
+    fun reset(
+        newDifficulty: SudokuEngine.Difficulty = difficulty,
+        requestedCode: String? = null,
+        lockedChallenge: Boolean = false
+    ) {
         val code = requestedCode?.let(ChallengeCodes::normalize) ?: ChallengeCodes.create(newDifficulty)
         val codeDifficulty = ChallengeCodes.difficulty(code) ?: newDifficulty
         difficulty = codeDifficulty
@@ -83,6 +88,7 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
         selected = -1
         notesMode = false
         lockedNumber = null
+        lockedChallengeMode = lockedChallenge
         mistakes = 0
         hintsUsed = 0
         autoCompleted = false
@@ -105,7 +111,8 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
         savedMistakes: Int,
         savedHints: Int,
         savedSeconds: Int,
-        savedNotesMode: Boolean
+        savedNotesMode: Boolean,
+        savedLockedChallenge: Boolean = false
     ) {
         reset(savedDifficulty, savedCode)
         if (savedBoard.size == 81) {
@@ -120,6 +127,7 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
         seconds = savedSeconds.coerceAtLeast(0)
         notesMode = savedNotesMode
         lockedNumber = null
+        lockedChallengeMode = savedLockedChallenge
         selected = -1
         won = false
         paused = false
@@ -352,8 +360,8 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
 
     fun remaining(): Int = board.count { it == 0 }
     fun placedCount(n: Int): Int = board.count { it == n }
-    fun failed(): Boolean = settings.errorLimit && mistakes >= 3 && !won
-    fun errorLabel(): String = if (settings.errorLimit) "$mistakes/3" else "$mistakes"
+    fun failed(): Boolean = !lockedChallengeMode && settings.errorLimit && mistakes >= 3 && !won
+    fun errorLabel(): String = if (!lockedChallengeMode && settings.errorLimit) "$mistakes/3" else "$mistakes"
 
     fun score(final: Boolean = won): Int {
         val base = intArrayOf(1000, 2000, 3500, 5000, 7500, 10000)[difficulty.ordinal]
