@@ -189,10 +189,6 @@ private fun SudokuAppRoot() {
             onPlay = { showLevels = true },
             hasResume = hasResumeGame,
             onResume = { restoreResumeGame() },
-            onDaily = {
-                dailySelectFirstAvailable = false
-                screen = AppScreen.DAILY
-            },
             onSettings = { screen = AppScreen.SETTINGS },
             onTutorial = { screen = AppScreen.TUTORIAL },
             onStatistics = { screen = AppScreen.STATISTICS },
@@ -223,6 +219,10 @@ private fun SudokuAppRoot() {
             stats = stats,
             statsVersion = statsVersion,
             onBack = { screen = AppScreen.HOME },
+            onDaily = {
+                dailySelectFirstAvailable = false
+                screen = AppScreen.DAILY
+            },
             onPlayLocked = {
                 val date = LocalDate.now()
                 lockedChallengeDate = date
@@ -242,7 +242,7 @@ private fun SudokuAppRoot() {
             stats = stats,
             statsVersion = statsVersion,
             selectFirstAvailable = dailySelectFirstAvailable,
-            onBack = { screen = AppScreen.HOME },
+            onBack = { screen = AppScreen.CHALLENGES },
             onCompleted = { date, result ->
                 completedDailyDate = date
                 completedDailyResult = result
@@ -641,7 +641,6 @@ private fun HomeScreen(
     onPlay: () -> Unit,
     hasResume: Boolean,
     onResume: () -> Unit,
-    onDaily: () -> Unit,
     onSettings: () -> Unit,
     onTutorial: () -> Unit,
     onStatistics: () -> Unit,
@@ -677,41 +676,15 @@ private fun HomeScreen(
             )
         ) { Text(tr("R I P R E N D I"), fontSize = 16.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold) }
 
-        Spacer(Modifier.height(18.dp))
-        val today = LocalDate.now()
-        val monthNames = listOf(
-            "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
-            "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
-        ).map(::tr)
-        Row(
-            modifier = Modifier.fillMaxWidth().height(92.dp)
-                .background(Color(0xFFEDF5FD), RoundedCornerShape(16.dp))
-                .border(1.dp, Color(0xFFD1E0F0), RoundedCornerShape(16.dp))
-                .clickable { onDaily() }.padding(horizontal = 18.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(tr("▦"), color = AppBlue, fontSize = 45.sp, fontWeight = FontWeight.Light)
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(tr("Sfida del giorno"), color = Color(0xFF1D2738), fontSize = 20.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(4.dp))
-                Text("${today.dayOfMonth} ${monthNames[today.monthValue - 1]}", color = AppBlue, fontSize = 16.sp)
-            }
-            Box(Modifier.width(1.dp).height(54.dp).background(Color(0xFFD2DDEB)))
-            Spacer(Modifier.width(14.dp))
-            Text(tr("Apri"), color = AppBlue, fontSize = 17.sp, fontFamily = FontFamily.Serif)
-            Spacer(Modifier.width(8.dp))
-            Text(tr("→"), color = AppBlue, fontSize = 28.sp)
-        }
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(22.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HomeGridCard("▥", "Statistiche", onStatistics)
-            HomeGridCard("#", "Sfide con codice", onChallenges)
+            HomeGridCard("▥", "Statistiche", onStatistics, background = Color(0xFFF0ECFF), accent = Color(0xFF7658C9))
+            HomeGridCard("✦", "Sfide", onChallenges, background = Color(0xFFE4F2FF), accent = Color(0xFF2379C9))
         }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HomeGridCard("⚙", "Impostazioni", onSettings)
-            HomeGridCard("?", "Come si gioca", onTutorial, circledIcon = true)
+            HomeGridCard("⚙", "Impostazioni", onSettings, background = Color(0xFFFFF0E2), accent = Color(0xFFD77B2D))
+            HomeGridCard("?", "Come si gioca", onTutorial, circledIcon = true, background = Color(0xFFE8F8F1), accent = Color(0xFF268E68))
         }
         Spacer(Modifier.height(28.dp))
     }
@@ -722,26 +695,28 @@ private fun RowScope.HomeGridCard(
     icon: String,
     title: String,
     onClick: () -> Unit,
-    circledIcon: Boolean = false
+    circledIcon: Boolean = false,
+    background: Color = Color.White,
+    accent: Color = AppBlue
 ) {
     Column(
         modifier = Modifier.weight(1f).height(124.dp)
-            .background(Color.White, RoundedCornerShape(14.dp))
-            .border(1.dp, Color(0xFFE1E4E9), RoundedCornerShape(14.dp))
+            .background(background, RoundedCornerShape(18.dp))
+            .border(1.dp, accent.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
             .clickable { onClick() }.padding(12.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = if (circledIcon) Modifier.size(48.dp).border(1.8.dp, AppBlue, CircleShape) else Modifier.height(48.dp),
+            modifier = if (circledIcon) Modifier.size(48.dp).border(1.8.dp, accent, CircleShape) else Modifier.height(48.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(icon, color = AppBlue, fontSize = if (icon == "#") 42.sp else 34.sp, fontWeight = FontWeight.Normal)
+            Text(icon, color = accent, fontSize = 34.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            title,
-            color = Color(0xFF202634),
+            tr(title),
+            color = accent,
             fontSize = 16.sp,
             fontFamily = FontFamily.Serif,
             textAlign = TextAlign.Center,
@@ -1019,10 +994,44 @@ private fun SimplePageHeader(title: String, onBack: () -> Unit) {
 }
 
 @Composable
+private fun ChallengeHubCard(
+    icon: String,
+    title: String,
+    subtitle: String,
+    colors: List<Color>,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 126.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(Brush.horizontalGradient(colors))
+            .clickable { onClick() }
+            .padding(horizontal = 20.dp, vertical = 19.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(62.dp).background(Color.White.copy(alpha = 0.20f), RoundedCornerShape(19.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(icon, color = Color.White, fontSize = 31.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(tr(title), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(4.dp))
+            Text(tr(subtitle), color = Color.White.copy(alpha = 0.90f), fontSize = 13.sp, lineHeight = 18.sp)
+        }
+        Spacer(Modifier.width(8.dp))
+        Text("›", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Light)
+    }
+}
+
+@Composable
 private fun ChallengeScreen(
     stats: StatsStore,
     statsVersion: Int,
     onBack: () -> Unit,
+    onDaily: () -> Unit,
     onPlayLocked: () -> Unit,
     onPlayCode: (String) -> Unit
 ) {
@@ -1034,6 +1043,7 @@ private fun ChallengeScreen(
     var generatedCode by remember { mutableStateOf("") }
     var challengeLevel by remember { mutableStateOf(SudokuEngine.Difficulty.MEDIO) }
     var showChallengeLevelPicker by remember { mutableStateOf(false) }
+    var showFriendChallenges by remember { mutableStateOf(false) }
     val history = stats.challengeHistory()
 
     fun requestPlay(rawCode: String) {
@@ -1047,31 +1057,59 @@ private fun ChallengeScreen(
         if (result != null) previousResult = result else onPlayCode(normalized)
     }
 
+    if (!showFriendChallenges) {
+        Column(Modifier.fillMaxSize().background(Color(0xFFF4F6FB))) {
+            SimplePageHeader("Sfide", onBack)
+            Column(
+                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    tr("Scegli la tua sfida"),
+                    color = Color(0xFF25344B),
+                    fontSize = 25.sp,
+                    fontFamily = FontFamily.Serif,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    tr("Ogni modalità mette alla prova un'abilità diversa."),
+                    color = AppText,
+                    fontSize = 15.sp
+                )
+                ChallengeHubCard(
+                    icon = "▦",
+                    title = "Sfida del giorno",
+                    subtitle = "Un nuovo schema ogni giorno, classifica e serie senza errori.",
+                    colors = listOf(Color(0xFF2676C9), Color(0xFF49A6DB)),
+                    onClick = onDaily
+                )
+                ChallengeHubCard(
+                    icon = "🔒",
+                    title = "Sfida Numero Bloccato",
+                    subtitle = "Completa lo schema bloccando un numero. Vince chi fa meno errori.",
+                    colors = listOf(Color(0xFF6B4FC7), Color(0xFF9876E7)),
+                    onClick = onPlayLocked
+                )
+                ChallengeHubCard(
+                    icon = "♟",
+                    title = "Sfida un amico",
+                    subtitle = "Crea o inserisci un codice e giocate sullo stesso schema.",
+                    colors = listOf(Color(0xFFE06A47), Color(0xFFF3A14B)),
+                    onClick = { showFriendChallenges = true }
+                )
+                Spacer(Modifier.height(14.dp))
+            }
+        }
+        return
+    }
+
+    BackHandler { showFriendChallenges = false }
     Column(Modifier.fillMaxSize().background(Color(0xFFF0F3F9))) {
-        SimplePageHeader("Sfide con codice", onBack)
+        SimplePageHeader("Sfida un amico") { showFriendChallenges = false }
         Column(
             Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Surface(
-                modifier = Modifier.fillMaxWidth().clickable { onPlayLocked() },
-                shape = RoundedCornerShape(22.dp),
-                color = Color(0xFFE8F2FF),
-                border = androidx.compose.foundation.BorderStroke(1.dp, AppBlue.copy(alpha = 0.35f))
-            ) {
-                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier.size(54.dp).background(AppBlue, RoundedCornerShape(16.dp)),
-                        contentAlignment = Alignment.Center
-                    ) { Text("🔒", fontSize = 27.sp) }
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(tr("Sfida Numero Bloccato"), color = Color(0xFF25344B), fontSize = 19.sp, fontWeight = FontWeight.Bold)
-                        Text(tr("Completa lo schema usando solo i numeri bloccati. Gli errori non fermano la partita."), color = AppText, fontSize = 13.sp)
-                    }
-                    Text("›", color = AppBlue, fontSize = 34.sp)
-                }
-            }
             Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(22.dp)).padding(20.dp)) {
                 Text(tr("Crea una sfida"), color = Color(0xFF25344B), fontSize = 21.sp, fontWeight = FontWeight.Bold)
                 Text(tr("Genera un codice e invialo a chi vuoi sfidare."), color = AppText, fontSize = 14.sp)
