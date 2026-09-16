@@ -31,6 +31,10 @@ class SettingsStore(context: Context) {
         private set
     var playerName by mutableStateOf(prefs.getString("player_name", "Giocatore").orEmpty())
         private set
+    var language by mutableStateOf(
+        AppLanguage.values().firstOrNull { it.code == prefs.getString("language", "").orEmpty() } ?: AppLanguage.SYSTEM
+    )
+        private set
 
     fun updateAnimations(value: Boolean) {
         animations = value
@@ -50,6 +54,11 @@ class SettingsStore(context: Context) {
     fun updatePlayerName(value: String) {
         playerName = value.trim().take(20).ifBlank { "Giocatore" }
         prefs.edit().putString("player_name", playerName).apply()
+    }
+
+    fun updateLanguage(value: AppLanguage) {
+        language = value
+        prefs.edit().putString("language", value.code).apply()
     }
 }
 
@@ -143,6 +152,46 @@ internal class StatsStore(context: Context) {
         prefs.getStringSet("challenge_codes", emptySet()).orEmpty()
             .mapNotNull(::challengeResult)
             .sortedByDescending { it.completedAt }
+
+    fun recordDailyCompletion(date: LocalDate, mistakes: Int) {
+        val completed = prefs.getStringSet("daily_completed_dates", emptySet()).orEmpty().toMutableSet()
+        completed.add(date.toString())
+        val flawless = prefs.getStringSet("daily_flawless_dates", emptySet()).orEmpty().toMutableSet()
+        if (mistakes == 0) flawless.add(date.toString())
+        prefs.edit()
+            .putStringSet("daily_completed_dates", completed)
+            .putStringSet("daily_flawless_dates", flawless)
+            .putInt("best_daily_flawless_streak", calculateBestDateStreak(flawless))
+            .apply()
+    }
+
+    fun currentDailyFlawlessStreak(today: LocalDate = LocalDate.now()): Int {
+        val completed = prefs.getStringSet("daily_completed_dates", emptySet()).orEmpty()
+        val flawless = prefs.getStringSet("daily_flawless_dates", emptySet()).orEmpty()
+        if (today.toString() in completed && today.toString() !in flawless) return 0
+        var date = if (today.toString() in flawless) today else today.minusDays(1)
+        var count = 0
+        while (date.toString() in flawless) {
+            count++
+            date = date.minusDays(1)
+        }
+        return count
+    }
+
+    fun bestDailyFlawlessStreak(): Int = prefs.getInt("best_daily_flawless_streak", 0)
+
+    private fun calculateBestDateStreak(values: Set<String>): Int {
+        val dates = values.mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }.sorted()
+        var best = 0
+        var current = 0
+        var previous: LocalDate? = null
+        dates.forEach { date ->
+            current = if (previous != null && date == previous!!.plusDays(1)) current + 1 else 1
+            best = maxOf(best, current)
+            previous = date
+        }
+        return best
+    }
 
     private fun updateStreak(won: Boolean) {
         val current = if (won) prefs.getInt("currentStreak", 0) + 1 else 0

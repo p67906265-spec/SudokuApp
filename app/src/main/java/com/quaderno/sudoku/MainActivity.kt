@@ -50,6 +50,10 @@ internal val AppText = Color(0xFF727887)
 // Activity
 // ---------------------------------------------------------------------------
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(localizedContext(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -135,6 +139,7 @@ private fun SudokuAppRoot() {
                 newlyUnlockedLevel = nextLevel
             }
             if (dailyGameDate != null) {
+                stats.recordDailyCompletion(dailyGameDate!!, game.mistakes)
                 dailyResultSeconds = game.seconds
                 dailyResultScore = game.score(true)
                 onlineLeaderboard.submitAndLoad(
@@ -238,7 +243,7 @@ private fun SudokuAppRoot() {
             onDismissRequest = { showExitDialog = false },
             containerColor = Color(0xFF061F31),
             shape = RoundedCornerShape(28.dp),
-            title = { Text("Sei sicuro di uscire?", color = Color.White, fontWeight = FontWeight.Bold) },
+            title = { Text(tr("Sei sicuro di uscire?"), color = Color.White, fontWeight = FontWeight.Bold) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -248,7 +253,7 @@ private fun SudokuAppRoot() {
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
                 ) {
-                    Text("Sì", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(tr("Sì"), color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -256,7 +261,7 @@ private fun SudokuAppRoot() {
                     onClick = { showExitDialog = false },
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
                 ) {
-                    Text("No", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(tr("No"), color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -289,15 +294,15 @@ private fun SudokuAppRoot() {
                     verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("▥  Difficoltà", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Text(ChallengeCodes.difficulty(result.code)?.label ?: "Medio", color = Color(0xFFD94FEA), fontWeight = FontWeight.Bold)
+                        Text("▥  ${tr("Difficoltà")}", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(tr(ChallengeCodes.difficulty(result.code)?.label ?: "Medio"), color = Color(0xFFD94FEA), fontWeight = FontWeight.Bold)
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("◷  Tempo", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text("◷  ${tr("Tempo")}", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         Text(formatTime(result.seconds), color = Color(0xFF4B9DFF), fontWeight = FontWeight.Bold)
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("★  Punteggio", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text("★  ${tr("Punteggio")}", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         Text(result.score.toString(), color = Color(0xFF45D27A), fontWeight = FontWeight.Bold)
                     }
                 }
@@ -309,7 +314,7 @@ private fun SudokuAppRoot() {
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2186EA))
                 ) {
-                    Text("Chiudi", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text(tr("Chiudi"), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -335,14 +340,14 @@ private fun SudokuAppRoot() {
                 pendingDailyDate = null
                 showDailyResumeDialog = false
             },
-            title = { Text("Sfida del giorno", fontWeight = FontWeight.Bold) },
-            text = { Text("Cosa vuoi fare con la partita in corso?") },
+            title = { Text(tr("Sfida del giorno"), fontWeight = FontWeight.Bold) },
+            text = { Text(tr("Cosa vuoi fare con la partita in corso?")) },
             confirmButton = {
                 TextButton(onClick = {
                     pendingDailyDate = null
                     showDailyResumeDialog = false
                     screen = AppScreen.GAME
-                }) { Text("Continua la partita") }
+                }) { Text(tr("Continua la partita")) }
             },
             dismissButton = {
                 Column(horizontalAlignment = Alignment.End) {
@@ -355,11 +360,11 @@ private fun SudokuAppRoot() {
                         }
                         pendingDailyDate = null
                         showDailyResumeDialog = false
-                    }) { Text("Ricomincia") }
+                    }) { Text(tr("Ricomincia")) }
                     TextButton(onClick = {
                         pendingDailyDate = null
                         showDailyResumeDialog = false
-                    }) { Text("Annulla") }
+                    }) { Text(tr("Annulla")) }
                 }
             }
         )
@@ -377,8 +382,8 @@ private fun SudokuAppRoot() {
             shape = RoundedCornerShape(26.dp),
             title = {
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("✓", color = AppBlue, fontSize = 52.sp, fontWeight = FontWeight.Bold)
-                    Text("Sfida completata!", color = Color(0xFF263A58), fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                    Text(tr("✓"), color = AppBlue, fontSize = 52.sp, fontWeight = FontWeight.Bold)
+                    Text(tr("Sfida completata!"), color = Color(0xFF263A58), fontSize = 25.sp, fontWeight = FontWeight.Bold)
                 }
             },
             text = {
@@ -388,18 +393,26 @@ private fun SudokuAppRoot() {
                 ) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Tempo", color = AppText, fontSize = 15.sp)
+                            Text(tr("Tempo"), color = AppText, fontSize = 15.sp)
                             Text(formatTime(dailyResultSeconds), color = Color(0xFF263A58), fontSize = 25.sp, fontWeight = FontWeight.Bold)
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Punteggio", color = AppText, fontSize = 15.sp)
+                            Text(tr("Punteggio"), color = AppText, fontSize = 15.sp)
                             Text("$dailyResultScore", color = AppBlue, fontSize = 25.sp, fontWeight = FontWeight.Bold)
                         }
                     }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "🔥 Serie senza errori: ${stats.currentDailyFlawlessStreak()} giorni  •  Record ${stats.bestDailyFlawlessStreak()}",
+                        color = Color(0xFF263A58),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
                     Spacer(Modifier.height(18.dp))
                     HorizontalDivider(color = Color(0xFFDDE4EE))
                     Spacer(Modifier.height(14.dp))
-                    Text("Classifica del giorno", color = Color(0xFF263A58), fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                    Text(tr("Classifica del giorno"), color = Color(0xFF263A58), fontSize = 19.sp, fontWeight = FontWeight.Bold)
                     when {
                         dailyLeaderboard.loading -> {
                             Spacer(Modifier.height(12.dp))
@@ -407,11 +420,11 @@ private fun SudokuAppRoot() {
                         }
                         dailyLeaderboard.error != null -> {
                             Spacer(Modifier.height(8.dp))
-                            Text(dailyLeaderboard.error!!, color = AppText, textAlign = TextAlign.Center)
+                            Text(tr(dailyLeaderboard.error!!), color = AppText, textAlign = TextAlign.Center)
                         }
                         else -> {
                             Text(
-                                "${dailyLeaderboard.participants} partecipanti  •  Posizione ${dailyLeaderboard.position ?: "—"}",
+                        "${dailyLeaderboard.participants} ${tr("partecipanti")}  •  ${tr("Posizione")} ${dailyLeaderboard.position ?: "—"}",
                                 color = AppBlue,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
@@ -439,7 +452,7 @@ private fun SudokuAppRoot() {
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(26.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
-                ) { Text("Torna alle sfide", fontSize = 17.sp, fontWeight = FontWeight.Bold) }
+                ) { Text(tr("Torna alle sfide"), fontSize = 17.sp, fontWeight = FontWeight.Bold) }
             }
         )
     }
@@ -484,7 +497,7 @@ private fun UnlockOverlay(
                     modifier = Modifier.size(82.dp).background(AppBlue, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("★", color = Color.White, fontSize = 47.sp, fontWeight = FontWeight.Bold)
+                    Text(tr("★"), color = Color.White, fontSize = 47.sp, fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.height(18.dp))
                 Text(
@@ -502,7 +515,7 @@ private fun UnlockOverlay(
                     textAlign = TextAlign.Center
                 )
                 Text(
-                    level.label.lowercase().replaceFirstChar { it.uppercase() },
+                    tr(level.label).lowercase().replaceFirstChar { it.uppercase() },
                     color = AppBlue,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold
@@ -514,7 +527,7 @@ private fun UnlockOverlay(
                     shape = RoundedCornerShape(28.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
                 ) {
-                    Text("Prova il nuovo livello", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text(tr("Prova il nuovo livello"), fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.height(10.dp))
                 OutlinedButton(
@@ -523,7 +536,7 @@ private fun UnlockOverlay(
                     shape = RoundedCornerShape(27.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = AppBlue)
                 ) {
-                    Text("Continua", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    Text(tr("Continua"), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -546,8 +559,8 @@ private fun HomeScreen(
         horizontalAlignment = Alignment.Start
     ) {
         Spacer(Modifier.height(52.dp))
-        Text("Sudoku Free", color = Color(0xFF171A22), fontSize = 43.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold)
-        Text("gioca, rilassati, divertiti", color = AppBlue, fontSize = 19.sp, fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic)
+        Text(tr("Sudoku Free"), color = Color(0xFF171A22), fontSize = 43.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold)
+        Text(tr("gioca, rilassati, divertiti"), color = AppBlue, fontSize = 19.sp, fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic)
         Spacer(Modifier.height(16.dp))
         HorizontalDivider(thickness = 2.dp, color = Color(0xFF2B2F38))
         Spacer(Modifier.height(26.dp))
@@ -556,7 +569,7 @@ private fun HomeScreen(
             modifier = Modifier.fillMaxWidth().height(62.dp).border(1.5.dp, Color(0xFF222833), RoundedCornerShape(12.dp)),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF356DB9))
-        ) { Text("G I O C A", fontSize = 19.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold) }
+        ) { Text(tr("G I O C A"), fontSize = 19.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold) }
         Spacer(Modifier.height(10.dp))
         OutlinedButton(
             onClick = onResume,
@@ -569,14 +582,14 @@ private fun HomeScreen(
                 disabledContainerColor = Color.Transparent,
                 disabledContentColor = AppText.copy(alpha = 0.45f)
             )
-        ) { Text("R I P R E N D I", fontSize = 16.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold) }
+        ) { Text(tr("R I P R E N D I"), fontSize = 16.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold) }
 
         Spacer(Modifier.height(18.dp))
         val today = LocalDate.now()
         val monthNames = listOf(
-            "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
-            "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"
-        )
+            "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+            "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
+        ).map(::tr)
         Row(
             modifier = Modifier.fillMaxWidth().height(92.dp)
                 .background(Color(0xFFEDF5FD), RoundedCornerShape(16.dp))
@@ -584,18 +597,18 @@ private fun HomeScreen(
                 .clickable { onDaily() }.padding(horizontal = 18.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("▦", color = AppBlue, fontSize = 45.sp, fontWeight = FontWeight.Light)
+            Text(tr("▦"), color = AppBlue, fontSize = 45.sp, fontWeight = FontWeight.Light)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text("Sfida del giorno", color = Color(0xFF1D2738), fontSize = 20.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold)
+                Text(tr("Sfida del giorno"), color = Color(0xFF1D2738), fontSize = 20.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
                 Text("${today.dayOfMonth} ${monthNames[today.monthValue - 1]}", color = AppBlue, fontSize = 16.sp)
             }
             Box(Modifier.width(1.dp).height(54.dp).background(Color(0xFFD2DDEB)))
             Spacer(Modifier.width(14.dp))
-            Text("Apri", color = AppBlue, fontSize = 17.sp, fontFamily = FontFamily.Serif)
+            Text(tr("Apri"), color = AppBlue, fontSize = 17.sp, fontFamily = FontFamily.Serif)
             Spacer(Modifier.width(8.dp))
-            Text("→", color = AppBlue, fontSize = 28.sp)
+            Text(tr("→"), color = AppBlue, fontSize = 28.sp)
         }
         Spacer(Modifier.height(20.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -661,7 +674,7 @@ private fun DailyChallengeScreen(
     val monthNames = listOf(
         "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
         "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
-    )
+    ).map(::tr)
     val completedDays = (1..month.lengthOfMonth()).filter { day ->
         val date = month.atDay(day)
         ChallengeCodes.dailyCodes(date).any { stats.challengeResult(it) != null }
@@ -686,11 +699,11 @@ private fun DailyChallengeScreen(
             Modifier.fillMaxWidth().height(235.dp)
                 .background(Brush.verticalGradient(listOf(Color(0xFF2F83DC), Color(0xFF46B7EB))))
         ) {
-            Text("‹", color = Color.White, fontSize = 50.sp, modifier = Modifier.align(Alignment.TopStart).padding(start = 22.dp, top = 20.dp).clickable { onBack() })
+            Text(tr("‹"), color = Color.White, fontSize = 50.sp, modifier = Modifier.align(Alignment.TopStart).padding(start = 22.dp, top = 20.dp).clickable { onBack() })
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Sfida del giorno", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                Text(tr("Sfida del giorno"), color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(14.dp))
-                Text("🏆", fontSize = 76.sp)
+                Text(tr("🏆"), fontSize = 76.sp)
                 Text(
                     selectedDate?.let { "${it.dayOfMonth} ${monthNames[it.monthValue - 1]} ${it.year}" } ?: "Mese completato",
                     color = Color.White.copy(alpha = 0.9f), fontSize = 15.sp
@@ -723,13 +736,15 @@ private fun DailyChallengeScreen(
                         .then(if (month < currentMonth) Modifier.clickable { month = month.plusMonths(1) } else Modifier)
                 )
                 Spacer(Modifier.weight(1f))
-                Text("★", color = Color(0xFFFFB51B), fontSize = 24.sp)
+                Text("🔥 ${stats.currentDailyFlawlessStreak(today)}", color = Color(0xFFFF8A00), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(10.dp))
+                Text(tr("★"), color = Color(0xFFFFB51B), fontSize = 24.sp)
                 Spacer(Modifier.width(6.dp))
                 Text("${completedDays.size}/${month.lengthOfMonth()}", color = Color(0xFF20242D), fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(18.dp))
             Row(Modifier.fillMaxWidth()) {
-                listOf("L", "M", "M", "G", "V", "S", "D").forEach { label ->
+                weekdayLabels().forEach { label ->
                     Text(label, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = Color(0xFF9AA0AC), fontSize = 14.sp)
                 }
             }
@@ -795,7 +810,7 @@ private fun DailyChallengeScreen(
                 shape = RoundedCornerShape(29.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF358DE5))
             ) {
-                Text(if (selectedDate == null) "Sfide completate" else "Gioca", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(tr(if (selectedDate == null) "Sfide completate" else "Gioca"), fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(10.dp))
         }
@@ -805,7 +820,7 @@ private fun DailyChallengeScreen(
 @Composable
 private fun ResultLine(label: String, value: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = AppText, fontWeight = FontWeight.SemiBold)
+        Text(tr(label), color = AppText, fontWeight = FontWeight.SemiBold)
         Text(value, color = AppBlue, fontWeight = FontWeight.Bold)
     }
 }
@@ -820,7 +835,7 @@ private fun SudokuIntroAnimation(onFinished: () -> Unit) {
     }
     Box(Modifier.fillMaxSize().background(Color(0xFFF7F8FC)), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Sudoku Free", color = AppBlue, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+            Text(tr("Sudoku Free"), color = AppBlue, fontSize = 32.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(24.dp))
             Column(Modifier.size(216.dp).border(2.dp, GridLine)) {
                 repeat(9) { r ->
@@ -836,7 +851,7 @@ private fun SudokuIntroAnimation(onFinished: () -> Unit) {
                 }
             }
             Spacer(Modifier.height(18.dp))
-            Text("Preparati a giocare", color = AppText, fontSize = 16.sp)
+            Text(tr("Preparati a giocare"), color = AppText, fontSize = 16.sp)
         }
     }
 }
@@ -853,7 +868,7 @@ private fun DifficultyDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(28.dp),
         containerColor = Color.White,
-        title = { Text("Scegli il livello", color = Color(0xFF25344B), fontSize = 24.sp, fontWeight = FontWeight.Bold) },
+        title = { Text(tr("Scegli il livello"), color = Color(0xFF25344B), fontSize = 24.sp, fontWeight = FontWeight.Bold) },
         text = {
             Column {
                 SudokuEngine.Difficulty.values().forEachIndexed { index, level ->
@@ -873,7 +888,7 @@ private fun DifficultyDialog(
                         Spacer(Modifier.width(16.dp))
                         Column {
                             Text(
-                                level.label.lowercase().replaceFirstChar { it.uppercase() },
+                                tr(level.label).lowercase().replaceFirstChar { it.uppercase() },
                                 color = if (unlocked) AppBlue else AppText,
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.SemiBold
@@ -895,16 +910,16 @@ private fun DifficultyDialog(
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Annulla", color = AppText) } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Annulla"), color = AppText) } }
     )
 }
 
 @Composable
 private fun SimplePageHeader(title: String, onBack: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("‹", color = AppBlue, fontSize = 48.sp, modifier = Modifier.clickable { onBack() })
+        Text(tr("‹"), color = AppBlue, fontSize = 48.sp, modifier = Modifier.clickable { onBack() })
         Spacer(Modifier.weight(1f))
-        Text(title, color = Color(0xFF17243A), fontSize = 23.sp, fontWeight = FontWeight.Bold)
+        Text(tr(title), color = Color(0xFF17243A), fontSize = 23.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
         Spacer(Modifier.width(28.dp))
     }
@@ -945,8 +960,8 @@ private fun ChallengeScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(22.dp)).padding(20.dp)) {
-                Text("Crea una sfida", color = Color(0xFF25344B), fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                Text("Genera un codice e invialo a chi vuoi sfidare.", color = AppText, fontSize = 14.sp)
+                Text(tr("Crea una sfida"), color = Color(0xFF25344B), fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                Text(tr("Genera un codice e invialo a chi vuoi sfidare."), color = AppText, fontSize = 14.sp)
                 Spacer(Modifier.height(14.dp))
                 Surface(
                     modifier = Modifier.fillMaxWidth().clickable { showChallengeLevelPicker = true },
@@ -954,13 +969,13 @@ private fun ChallengeScreen(
                     color = AppBlueSoft
                 ) {
                     Row(Modifier.padding(horizontal = 17.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Livello", color = AppText, fontSize = 14.sp)
+                        Text(tr("Livello"), color = AppText, fontSize = 14.sp)
                         Spacer(Modifier.weight(1f))
                         Text(
-                            challengeLevel.label.lowercase().replaceFirstChar { it.uppercase() },
+                            tr(challengeLevel.label).lowercase().replaceFirstChar { it.uppercase() },
                             color = AppBlue, fontSize = 17.sp, fontWeight = FontWeight.Bold
                         )
-                        Text("  ⌄", color = AppBlue, fontSize = 20.sp)
+                        Text(tr("  ⌄"), color = AppBlue, fontSize = 20.sp)
                     }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -968,7 +983,7 @@ private fun ChallengeScreen(
                     onClick = { generatedCode = ChallengeCodes.create(challengeLevel) },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
-                ) { Text("GENERA CODICE", fontWeight = FontWeight.Bold) }
+                ) { Text(tr("GENERA CODICE"), fontWeight = FontWeight.Bold) }
 
                 if (generatedCode.isNotEmpty()) {
                     Spacer(Modifier.height(16.dp))
@@ -977,7 +992,7 @@ private fun ChallengeScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("CODICE DELLA SFIDA", color = AppText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(tr("CODICE DELLA SFIDA"), color = AppText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             Text(generatedCode, color = AppBlue, fontSize = 27.sp, fontWeight = FontWeight.Bold)
                         }
                     }
@@ -986,10 +1001,10 @@ private fun ChallengeScreen(
                         OutlinedButton(
                             onClick = { onPlayCode(generatedCode) },
                             modifier = Modifier.weight(1f).height(48.dp)
-                        ) { Text("Gioca", color = AppBlue, fontWeight = FontWeight.Bold) }
+                        ) { Text(tr("Gioca"), color = AppBlue, fontWeight = FontWeight.Bold) }
                         Button(
                             onClick = {
-                                val levelName = challengeLevel.label.lowercase().replaceFirstChar { it.uppercase() }
+                                val levelName = tr(challengeLevel.label).lowercase().replaceFirstChar { it.uppercase() }
                                 val message = "Ti sfido a Sudoku Free! Livello $levelName. Inserisci il codice $generatedCode in Sfide con codice e giochiamo lo stesso schema."
                                 val intent = Intent(Intent.ACTION_SEND).apply {
                                     type = "text/plain"
@@ -999,22 +1014,22 @@ private fun ChallengeScreen(
                             },
                             modifier = Modifier.weight(1f).height(48.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
-                        ) { Text("Condividi codice", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                        ) { Text(tr("Condividi codice"), fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                     }
                 }
             }
 
             Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(22.dp)).padding(20.dp)) {
-                Text("Gioca lo stesso schema", color = Color(0xFF25344B), fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                Text("Inserisci il codice ricevuto da un amico.", color = AppText, fontSize = 14.sp)
+                Text(tr("Gioca lo stesso schema"), color = Color(0xFF25344B), fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                Text(tr("Inserisci il codice ricevuto da un amico."), color = AppText, fontSize = 14.sp)
                 Spacer(Modifier.height(14.dp))
                 OutlinedTextField(
                     value = code,
                     onValueChange = { code = it.uppercase().take(9); error = "" },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    label = { Text("Codice schema") },
-                    placeholder = { Text("Esempio: ME-7K4P9X") },
+                    label = { Text(tr("Codice schema")) },
+                    placeholder = { Text(tr("Esempio: ME-7K4P9X")) },
                     isError = error.isNotEmpty()
                 )
                 if (error.isNotEmpty()) Text(error, color = Color(0xFFD14A4A), fontSize = 13.sp)
@@ -1023,12 +1038,12 @@ private fun ChallengeScreen(
                     onClick = { requestPlay(code) },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
-                ) { Text("GIOCA CON QUESTO CODICE", fontWeight = FontWeight.Bold) }
+                ) { Text(tr("GIOCA CON QUESTO CODICE"), fontWeight = FontWeight.Bold) }
             }
 
-            Text("Schemi completati", color = Color(0xFF25344B), fontSize = 21.sp, fontWeight = FontWeight.Bold)
+            Text(tr("Schemi completati"), color = Color(0xFF25344B), fontSize = 21.sp, fontWeight = FontWeight.Bold)
             if (history.isEmpty()) {
-                Text("Non hai ancora completato schemi con un codice.", color = AppText, fontSize = 14.sp,
+                Text(tr("Non hai ancora completato schemi con un codice."), color = AppText, fontSize = 14.sp,
                     modifier = Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).padding(18.dp))
             } else {
                 history.forEach { result ->
@@ -1038,14 +1053,14 @@ private fun ChallengeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(Modifier.size(44.dp).background(AppBlueSoft, CircleShape), contentAlignment = Alignment.Center) {
-                            Text("#", color = AppBlue, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                            Text(tr("#"), color = AppBlue, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                         }
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
                             Text(result.code, color = Color(0xFF25344B), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             Text("Miglior tempo ${formatTime(result.seconds)}  •  ${result.score} punti", color = AppText, fontSize = 13.sp)
                         }
-                        Text("›", color = AppText, fontSize = 30.sp)
+                        Text(tr("›"), color = AppText, fontSize = 30.sp)
                     }
                 }
             }
@@ -1057,7 +1072,7 @@ private fun ChallengeScreen(
             onDismissRequest = { previousResult = null },
             shape = RoundedCornerShape(26.dp),
             containerColor = Color.White,
-            title = { Text("Schema già completato", color = Color(0xFF25344B), fontWeight = FontWeight.Bold) },
+            title = { Text(tr("Schema già completato"), color = Color(0xFF25344B), fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     Text(result.code, color = AppBlue, fontSize = 21.sp, fontWeight = FontWeight.Bold)
@@ -1070,9 +1085,9 @@ private fun ChallengeScreen(
                 Button(onClick = {
                     previousResult = null
                     onPlayCode(result.code)
-                }, colors = ButtonDefaults.buttonColors(containerColor = AppBlue)) { Text("Rigioca") }
+                }, colors = ButtonDefaults.buttonColors(containerColor = AppBlue)) { Text(tr("Rigioca")) }
             },
-            dismissButton = { TextButton(onClick = { previousResult = null }) { Text("Annulla") } }
+            dismissButton = { TextButton(onClick = { previousResult = null }) { Text(tr("Annulla")) } }
         )
     }
 
@@ -1081,7 +1096,7 @@ private fun ChallengeScreen(
             onDismissRequest = { showChallengeLevelPicker = false },
             shape = RoundedCornerShape(26.dp),
             containerColor = Color.White,
-            title = { Text("Livello della sfida", color = Color(0xFF25344B), fontWeight = FontWeight.Bold) },
+            title = { Text(tr("Livello della sfida"), color = Color(0xFF25344B), fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     SudokuEngine.Difficulty.values().forEach { level ->
@@ -1097,20 +1112,20 @@ private fun ChallengeScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                level.label.lowercase().replaceFirstChar { it.uppercase() },
+                                tr(level.label).lowercase().replaceFirstChar { it.uppercase() },
                                 color = if (unlocked) Color(0xFF25344B) else AppText,
                                 fontSize = 18.sp,
                                 fontWeight = if (level == challengeLevel) FontWeight.Bold else FontWeight.Normal
                             )
                             Spacer(Modifier.weight(1f))
-                            if (!unlocked) Text("🔒")
-                            if (level == challengeLevel) Text("✓", color = AppBlue, fontWeight = FontWeight.Bold)
+                            if (!unlocked) Text(tr("🔒"))
+                            if (level == challengeLevel) Text(tr("✓"), color = AppBlue, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { showChallengeLevelPicker = false }) { Text("Annulla") } }
+            dismissButton = { TextButton(onClick = { showChallengeLevelPicker = false }) { Text(tr("Annulla")) } }
         )
     }
 }
@@ -1142,7 +1157,7 @@ private fun StatisticsScreen(stats: StatsStore, statsVersion: Int, onBack: () ->
                 SummaryCard("Serie migliore", stats.bestStreak().toString(), Modifier.weight(1f))
             }
             Spacer(Modifier.height(6.dp))
-            Text("Dettaglio per livello", color = Color(0xFF25344B), fontSize = 21.sp, fontWeight = FontWeight.Bold)
+            Text(tr("Dettaglio per livello"), color = Color(0xFF25344B), fontSize = 21.sp, fontWeight = FontWeight.Bold)
             Surface(
                 modifier = Modifier.fillMaxWidth().clickable { showLevelPicker = true },
                 shape = RoundedCornerShape(18.dp),
@@ -1150,18 +1165,18 @@ private fun StatisticsScreen(stats: StatsStore, statsVersion: Int, onBack: () ->
             ) {
                 Row(Modifier.padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        selectedLevel.label.lowercase().replaceFirstChar { it.uppercase() },
+                        tr(selectedLevel.label).lowercase().replaceFirstChar { it.uppercase() },
                         color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.weight(1f))
-                    if (!stats.isUnlocked(selectedLevel)) Text("🔒  ", fontSize = 17.sp)
-                    Text("⌄", color = Color.White, fontSize = 26.sp)
+                    if (!stats.isUnlocked(selectedLevel)) Text(tr("🔒  "), fontSize = 17.sp)
+                    Text(tr("⌄"), color = Color.White, fontSize = 26.sp)
                 }
             }
 
             Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(22.dp)).padding(18.dp)) {
                 if (!stats.isUnlocked(selectedLevel)) {
-                    Text("Livello ancora bloccato", color = AppText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text(tr("Livello ancora bloccato"), color = AppText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(5.dp))
                     LinearProgressIndicator(
                         progress = stats.unlockProgress(selectedLevel) / 5f,
@@ -1196,7 +1211,7 @@ private fun StatisticsScreen(stats: StatsStore, statsVersion: Int, onBack: () ->
             onDismissRequest = { showLevelPicker = false },
             shape = RoundedCornerShape(26.dp),
             containerColor = Color.White,
-            title = { Text("Scegli il livello", color = Color(0xFF25344B), fontWeight = FontWeight.Bold) },
+            title = { Text(tr("Scegli il livello"), color = Color(0xFF25344B), fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     levels.forEach { level ->
@@ -1208,20 +1223,20 @@ private fun StatisticsScreen(stats: StatsStore, statsVersion: Int, onBack: () ->
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                level.label.lowercase().replaceFirstChar { it.uppercase() },
+                                tr(level.label).lowercase().replaceFirstChar { it.uppercase() },
                                 color = if (level == selectedLevel) AppBlue else Color(0xFF25344B),
                                 fontSize = 18.sp,
                                 fontWeight = if (level == selectedLevel) FontWeight.Bold else FontWeight.Normal
                             )
                             Spacer(Modifier.weight(1f))
-                            if (!stats.isUnlocked(level)) Text("🔒")
-                            if (level == selectedLevel) Text("  ✓", color = AppBlue, fontWeight = FontWeight.Bold)
+                            if (!stats.isUnlocked(level)) Text(tr("🔒"))
+                            if (level == selectedLevel) Text(tr("  ✓"), color = AppBlue, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { showLevelPicker = false }) { Text("Annulla") } }
+            dismissButton = { TextButton(onClick = { showLevelPicker = false }) { Text(tr("Annulla")) } }
         )
     }
 }
@@ -1233,7 +1248,7 @@ private fun LevelStatCard(label: String, value: String, modifier: Modifier = Mod
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(value, color = AppBlue, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-        Text(label, color = AppText, fontSize = 11.sp, textAlign = TextAlign.Center, lineHeight = 13.sp)
+        Text(tr(label), color = AppText, fontSize = 11.sp, textAlign = TextAlign.Center, lineHeight = 13.sp)
     }
 }
 
@@ -1244,7 +1259,7 @@ private fun SummaryCard(label: String, value: String, modifier: Modifier = Modif
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(value, color = AppBlue, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Text(label, color = AppText, fontSize = 13.sp, textAlign = TextAlign.Center)
+        Text(tr(label), color = AppText, fontSize = 13.sp, textAlign = TextAlign.Center)
     }
 }
 
@@ -1260,15 +1275,29 @@ private fun formatDuration(seconds: Long): String {
 
 @Composable
 private fun SettingsScreen(settings: SettingsStore, onBack: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var playerName by remember(settings.playerName) { mutableStateOf(settings.playerName) }
+    var showLanguages by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().background(Color(0xFFF0F3F9))) {
         SimplePageHeader("Impostazioni", onBack)
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SettingToggle("Animazioni", settings.animations, settings::updateAnimations)
             SettingToggle("Suggerimenti intelligenti", settings.smartHints, settings::updateSmartHints)
             SettingToggle("Limite di 3 errori", settings.errorLimit, settings::updateErrorLimit)
+            Surface(
+                modifier = Modifier.fillMaxWidth().clickable { showLanguages = true },
+                shape = RoundedCornerShape(18.dp),
+                color = Color.White
+            ) {
+                Row(Modifier.padding(horizontal = 18.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(tr("Lingua"), color = Color(0xFF202A38), fontSize = 18.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text(if (settings.language == AppLanguage.SYSTEM) tr(settings.language.title) else settings.language.title, color = AppBlue, fontWeight = FontWeight.Bold)
+                    Text(tr("  ⌄"), color = AppBlue, fontSize = 20.sp)
+                }
+            }
             Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).padding(16.dp)) {
-                Text("Nome in classifica", color = Color(0xFF202A38), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text(tr("Nome in classifica"), color = Color(0xFF202A38), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = playerName,
@@ -1278,18 +1307,43 @@ private fun SettingsScreen(settings: SettingsStore, onBack: () -> Unit) {
                     },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    placeholder = { Text("Giocatore") },
-                    supportingText = { Text("Massimo 20 caratteri") }
+                    placeholder = { Text(tr("Giocatore")) },
+                    supportingText = { Text(tr("Massimo 20 caratteri")) }
                 )
             }
-            Text("Le preferenze vengono salvate e applicate subito.", color = AppText, fontSize = 14.sp, modifier = Modifier.padding(10.dp))
+            Text(tr("Le preferenze vengono salvate e applicate subito."), color = AppText, fontSize = 14.sp, modifier = Modifier.padding(10.dp))
             Spacer(Modifier.height(10.dp))
             HorizontalDivider(color = Color(0xFFD5DCE8))
             Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Paolo Free 1.0", color = AppBlue, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text(tr("Paolo Free 1.0"), color = AppBlue, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
             }
         }
+    }
+
+    if (showLanguages) {
+        AlertDialog(
+            onDismissRequest = { showLanguages = false },
+            title = { Text(tr("Lingua"), fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    AppLanguage.values().forEach { language ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable {
+                                settings.updateLanguage(language)
+                                showLanguages = false
+                                (context as? android.app.Activity)?.recreate()
+                            }.padding(vertical = 13.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(if (language == AppLanguage.SYSTEM) tr(language.title) else language.title, modifier = Modifier.weight(1f), fontSize = 18.sp)
+                            if (language == settings.language) Text(tr("✓"), color = AppBlue, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            },
+            confirmButton = {}
+        )
     }
 }
 
@@ -1299,7 +1353,7 @@ private fun SettingToggle(title: String, checked: Boolean, onChecked: (Boolean) 
         Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).padding(horizontal = 18.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(title, color = Color(0xFF202A38), fontSize = 18.sp, modifier = Modifier.weight(1f))
+        Text(tr(title), color = Color(0xFF202A38), fontSize = 18.sp, modifier = Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = onChecked, colors = SwitchDefaults.colors(checkedTrackColor = AppBlue))
     }
 }
@@ -1316,17 +1370,17 @@ private fun TutorialScreen(onBack: () -> Unit) {
         SimplePageHeader("Come si gioca", onBack)
         TutorialVisual(page)
         Spacer(Modifier.height(14.dp))
-        Text(bodies[page], color = Color(0xFF303442), fontSize = 16.sp, textAlign = TextAlign.Center, lineHeight = 22.sp,
+        Text(tr(bodies[page]), color = Color(0xFF303442), fontSize = 16.sp, textAlign = TextAlign.Center, lineHeight = 22.sp,
             modifier = Modifier.padding(horizontal = 28.dp))
         Spacer(Modifier.weight(1f))
         Row(Modifier.fillMaxWidth().padding(horizontal = 26.dp, vertical = 22.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Salta", color = AppBlue, fontSize = 17.sp, modifier = Modifier.clickable { onBack() })
+            Text(tr("Salta"), color = AppBlue, fontSize = 17.sp, modifier = Modifier.clickable { onBack() })
             Spacer(Modifier.weight(1f))
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 repeat(3) { dot -> Box(Modifier.size(9.dp).background(if (dot == page) AppBlue else Color(0xFFB7BAC0), CircleShape)) }
             }
             Spacer(Modifier.weight(1f))
-            Text(if (page < 2) "Prossimo" else "Inizia", color = AppBlue, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+            Text(tr(if (page < 2) "Prossimo" else "Inizia"), color = AppBlue, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clickable { if (page < 2) page++ else onBack() })
         }
     }
@@ -1361,7 +1415,7 @@ private fun TutorialVisual(page: Int) {
 private fun TutorialTool(icon: String, label: String, active: Boolean = false) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(icon, color = if (active) AppBlue else Color(0xFF343849), fontSize = 21.sp, fontWeight = FontWeight.Bold)
-        Text(label, color = AppText, fontSize = 10.sp)
+        Text(tr(label), color = AppText, fontSize = 10.sp)
     }
 }
 

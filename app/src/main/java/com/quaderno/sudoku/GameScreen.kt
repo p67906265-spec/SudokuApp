@@ -131,13 +131,13 @@ private fun ModernTopBar(game: GameState, onBack: () -> Unit, onSettings: () -> 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text("‹", color = AppBlue, fontSize = 48.sp, fontWeight = FontWeight.Light, modifier = Modifier.clickable { onBack() })
+        Text(tr("‹"), color = AppBlue, fontSize = 48.sp, fontWeight = FontWeight.Light, modifier = Modifier.clickable { onBack() })
         Text("$m:$s", color = Color(0xFF263A58), fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            Text("⟳", color = AppBlue, fontSize = 38.sp, modifier = Modifier.clickable { game.reset() })
+            Text(tr("⟳"), color = AppBlue, fontSize = 38.sp, modifier = Modifier.clickable { game.reset() })
             Text(if (game.paused) "▶" else "Ⅱ", color = AppBlue, fontSize = 30.sp,
                 modifier = Modifier.clickable { game.paused = !game.paused })
-            Text("⚙", color = AppBlue, fontSize = 34.sp, modifier = Modifier.clickable { onSettings() })
+            Text(tr("⚙"), color = AppBlue, fontSize = 34.sp, modifier = Modifier.clickable { onSettings() })
         }
     }
 }
@@ -145,7 +145,7 @@ private fun ModernTopBar(game: GameState, onBack: () -> Unit, onSettings: () -> 
 @Composable
 private fun ModernStats(game: GameState) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-        ModernStat("Difficoltà", game.difficulty.label.lowercase().replaceFirstChar { it.uppercase() })
+        ModernStat("Difficoltà", tr(game.difficulty.label).lowercase().replaceFirstChar { it.uppercase() })
         ModernStat("Punteggio", "${game.score()}")
         ModernStat("Errori", game.errorLabel())
     }
@@ -157,7 +157,7 @@ private fun ModernStat(label: String, value: String, clickable: Boolean = false,
         modifier = if (clickable) Modifier.clickable { onClick() }.padding(4.dp) else Modifier.padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(label, color = AppText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(tr(label), color = AppText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         Text(value, color = AppText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
     }
 }
@@ -302,7 +302,7 @@ private fun ModernActions(game: GameState) {
         ColorAction("↶", "Annulla", Color(0xFFFF9F43)) { game.undo() }
         ColorAction("▱", "Cancella", Color(0xFFFF5576)) { game.erase() }
         ColorAction(if (game.notesMode) "✎" else "✎", "Note", Color(0xFF4B94F2), game.notesMode) { game.toggleNotes() }
-        ColorAction("♣", "Aiuti: ${game.hintsRemaining()}", Color(0xFF42C49A)) { game.hint() }
+        ColorAction("♣", "${tr("Suggerimento")}: ${game.hintsRemaining()}", Color(0xFF42C49A)) { game.hint() }
     }
 }
 
@@ -322,7 +322,7 @@ private fun ColorAction(icon: String, label: String, color: Color, active: Boole
             Text(icon, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(7.dp))
-        Text(label, color = AppText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+        Text(tr(label), color = AppText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
     }
 }
 
@@ -334,16 +334,25 @@ private fun NumberPad(game: GameState) {
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .then(if (left > 0) Modifier.clickable { game.input(n) } else Modifier)
+                    .then(
+                        if (game.lockedNumber == n) Modifier.background(AppBlueSoft, RoundedCornerShape(12.dp))
+                        else Modifier
+                    )
+                    .then(if (left > 0) Modifier.clickable { game.selectNumber(n) } else Modifier)
                     .padding(vertical = 5.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (left > 0) {
-                    Text("$n", fontWeight = FontWeight.Normal, fontSize = 34.sp, color = AppBlue)
+                    Text(
+                        "$n",
+                        fontWeight = if (game.lockedNumber == n) FontWeight.Bold else FontWeight.Normal,
+                        fontSize = 34.sp,
+                        color = AppBlue
+                    )
                     Text("$left", fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = Color(0xFF9AA3B2))
                 } else {
-                    Text("✓", fontWeight = FontWeight.Bold, fontSize = 29.sp, color = AppBlue)
-                    Text(" ", fontSize = 11.sp)
+                    Text(tr("✓"), fontWeight = FontWeight.Bold, fontSize = 29.sp, color = AppBlue)
+                    Text(tr(" "), fontSize = 11.sp)
                 }
             }
         }
@@ -357,10 +366,10 @@ private fun PauseOverlay(game: GameState) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Ⅱ", color = AppBlue, fontSize = 64.sp)
-            Text("Partita in pausa", color = Color(0xFF263A58), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(tr("Ⅱ"), color = AppBlue, fontSize = 64.sp)
+            Text(tr("Partita in pausa"), color = Color(0xFF263A58), fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(10.dp))
-            Text("Tocca per continuare", color = AppText, fontSize = 16.sp)
+            Text(tr("Tocca per continuare"), color = AppText, fontSize = 16.sp)
         }
     }
 }
@@ -372,7 +381,7 @@ private fun FailureOverlay(game: GameState, onExit: () -> Unit) {
             Modifier.padding(horizontal = 30.dp).fillMaxWidth().background(Color.White, RoundedCornerShape(26.dp)).padding(28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Hai perso", color = Color(0xFF202332), fontSize = 34.sp, fontWeight = FontWeight.Bold)
+            Text(tr("Hai perso"), color = Color(0xFF202332), fontSize = 34.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(14.dp))
             Text(
                 "Hai perso la partita perché hai commesso 3 errori",
@@ -384,16 +393,16 @@ private fun FailureOverlay(game: GameState, onExit: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().height(54.dp),
                 shape = RoundedCornerShape(27.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = AppBlue)
-            ) { Text("Riprova", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+            ) { Text(tr("Riprova"), fontSize = 18.sp, fontWeight = FontWeight.Bold) }
             Spacer(Modifier.height(8.dp))
             TextButton(
                 onClick = { game.reset() },
                 modifier = Modifier.fillMaxWidth().height(50.dp)
-            ) { Text("Cambia schema", color = AppBlue, fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
+            ) { Text(tr("Cambia schema"), color = AppBlue, fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
             TextButton(
                 onClick = onExit,
                 modifier = Modifier.fillMaxWidth().height(50.dp)
-            ) { Text("Esci", color = AppText, fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
+            ) { Text(tr("Esci"), color = AppText, fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
         }
     }
 }
@@ -436,19 +445,19 @@ private fun WinOverlay(game: GameState, onMenu: () -> Unit, onChangeLevel: () ->
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha=.58f)), contentAlignment=Alignment.Center) {
         Surface(Modifier.fillMaxWidth().padding(horizontal=28.dp), shape=RoundedCornerShape(24.dp), color=Color(0xFF071B2C), shadowElevation=14.dp, border=androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF168BFF))) {
             Column(Modifier.padding(24.dp), horizontalAlignment=Alignment.CenterHorizontally) {
-                Text("CONGRATULAZIONI! ✨", color=Color(0xFFFFC83D), fontSize=25.sp, fontWeight=FontWeight.Bold)
-                Text("Hai completato il Sudoku!", color=Color.White, fontSize=16.sp)
-                Spacer(Modifier.height(10.dp)); Text("🏆", fontSize=52.sp); Spacer(Modifier.height(8.dp))
-                SummaryRow("◷  Tempo", "$m:$sec", Color(0xFF3EA2FF))
-                SummaryRow("★  Punteggio", "${game.score(true)}", Color(0xFF45D66F))
-                SummaryRow("◎  Errori", "${game.mistakes}", Color(0xFFFF4D55))
-                SummaryRow("▥  Difficoltà", game.difficulty.label, Color(0xFFD65CFF))
+                Text(tr("CONGRATULAZIONI! ✨"), color=Color(0xFFFFC83D), fontSize=25.sp, fontWeight=FontWeight.Bold)
+                Text(tr("Hai completato il Sudoku!"), color=Color.White, fontSize=16.sp)
+                Spacer(Modifier.height(10.dp)); Text(tr("🏆"), fontSize=52.sp); Spacer(Modifier.height(8.dp))
+                SummaryRow("◷  ${tr("Tempo")}", "$m:$sec", Color(0xFF3EA2FF))
+                SummaryRow("★  ${tr("Punteggio")}", "${game.score(true)}", Color(0xFF45D66F))
+                SummaryRow("◎  ${tr("Errori")}", "${game.mistakes}", Color(0xFFFF4D55))
+                SummaryRow("▥  ${tr("Difficoltà")}", tr(game.difficulty.label), Color(0xFFD65CFF))
                 Spacer(Modifier.height(18.dp))
-                Button({game.reset()}, Modifier.fillMaxWidth().height(52.dp), shape=RoundedCornerShape(14.dp), colors=ButtonDefaults.buttonColors(containerColor=Color(0xFF1477E8))) { Text("▶  Nuovo Gioco", fontWeight=FontWeight.Bold) }
+                Button({game.reset()}, Modifier.fillMaxWidth().height(52.dp), shape=RoundedCornerShape(14.dp), colors=ButtonDefaults.buttonColors(containerColor=Color(0xFF1477E8))) { Text(tr("▶  Nuovo Gioco"), fontWeight=FontWeight.Bold) }
                 Spacer(Modifier.height(10.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                    OutlinedButton(onChangeLevel, Modifier.weight(1f), border=androidx.compose.foundation.BorderStroke(1.dp,Color(0xFF168BFF))) { Text("Livello", color=Color.White) }
-                    OutlinedButton(onMenu, Modifier.weight(1f), border=androidx.compose.foundation.BorderStroke(1.dp,Color(0xFF168BFF))) { Text("Menu", color=Color.White) }
+                    OutlinedButton(onChangeLevel, Modifier.weight(1f), border=androidx.compose.foundation.BorderStroke(1.dp,Color(0xFF168BFF))) { Text(tr("Livello"), color=Color.White) }
+                    OutlinedButton(onMenu, Modifier.weight(1f), border=androidx.compose.foundation.BorderStroke(1.dp,Color(0xFF168BFF))) { Text(tr("Menu"), color=Color.White) }
                 }
             }
         }
@@ -457,6 +466,6 @@ private fun WinOverlay(game: GameState, onMenu: () -> Unit, onChangeLevel: () ->
 
 @Composable private fun SummaryRow(label:String, value:String, valueColor:Color) {
     Row(Modifier.fillMaxWidth().padding(vertical=7.dp), horizontalArrangement=Arrangement.SpaceBetween) {
-        Text(label,color=Color.White,fontSize=16.sp,fontWeight=FontWeight.SemiBold); Text(value,color=valueColor,fontSize=16.sp,fontWeight=FontWeight.Bold)
+        Text(tr(label),color=Color.White,fontSize=16.sp,fontWeight=FontWeight.SemiBold); Text(value,color=valueColor,fontSize=16.sp,fontWeight=FontWeight.Bold)
     }
 }

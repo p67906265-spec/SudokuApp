@@ -51,6 +51,7 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
     val notes: List<SnapshotStateList<Int>> = List(81) { mutableStateListOf() }
     var selected by mutableStateOf(-1)
     var notesMode by mutableStateOf(false)
+    var lockedNumber by mutableStateOf<Int?>(null)
     var mistakes by mutableStateOf(0)
     var hintsUsed by mutableStateOf(0)
     var autoCompleted by mutableStateOf(false)
@@ -81,6 +82,7 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
         notes.forEach { it.clear() }
         selected = -1
         notesMode = false
+        lockedNumber = null
         mistakes = 0
         hintsUsed = 0
         autoCompleted = false
@@ -117,6 +119,7 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
         hintsUsed = savedHints.coerceIn(0, 2)
         seconds = savedSeconds.coerceAtLeast(0)
         notesMode = savedNotesMode
+        lockedNumber = null
         selected = -1
         won = false
         paused = false
@@ -129,6 +132,7 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
         notes.forEach { it.clear() }
         selected = -1
         notesMode = false
+        lockedNumber = null
         mistakes = 0
         hintsUsed = 0
         autoCompleted = false
@@ -147,7 +151,22 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
         if (history.size > 200) history.removeFirst()
     }
 
-    fun select(pos: Int) { if (!won && !failed()) selected = pos }
+    fun select(pos: Int) {
+        if (won || failed()) return
+        selected = pos
+        val locked = lockedNumber
+        if (locked != null && !given[pos] && board[pos] == 0) input(locked)
+    }
+
+    fun selectNumber(n: Int) {
+        if (won || failed() || placedCount(n) >= 9) return
+        if (lockedNumber == n) {
+            lockedNumber = null
+        } else {
+            lockedNumber = n
+            if (selected >= 0 && !given[selected] && board[selected] == 0) input(n)
+        }
+    }
 
     private fun isInSameBox(origin: Int, candidate: Int): Boolean =
         origin / 9 / 3 == candidate / 9 / 3 && origin % 9 / 3 == candidate % 9 / 3
@@ -199,6 +218,7 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
         checkWin()
         showCompletedArea(pos, row, col, box, rowWasComplete, columnWasComplete, boxWasComplete)
         if (!won && board[pos] == n && placedCount(n) >= 9) {
+            if (lockedNumber == n) lockedNumber = null
             selectNextIncompleteNumber(n)
         }
     }
