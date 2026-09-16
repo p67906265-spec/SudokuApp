@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.res.Configuration
 import java.util.Locale
 
-internal enum class AppLanguage(val code: String, val title: String) {
+enum class AppLanguage(val code: String, val title: String) {
     SYSTEM("", "Automatica"), ITALIAN("it", "Italiano"), ENGLISH("en", "English"),
     SPANISH("es", "Español"), FRENCH("fr", "Français"), GERMAN("de", "Deutsch")
 }
