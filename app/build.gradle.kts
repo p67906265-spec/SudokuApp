@@ -12,8 +12,8 @@ android {
         applicationId = "com.quaderno.sudoku"
         minSdk = 24
         targetSdk = 34
-        versionCode = 41
-        versionName = "1.41"
+        versionCode = 42
+        versionName = "1.42"
     }
 
     signingConfigs {

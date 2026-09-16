@@ -29,6 +29,8 @@ class SettingsStore(context: Context) {
         private set
     var errorLimit by mutableStateOf(prefs.getBoolean("error_limit", true))
         private set
+    var pastelTheme by mutableStateOf(prefs.getBoolean("pastel_theme", false))
+        private set
     var playerName by mutableStateOf(prefs.getString("player_name", "Giocatore").orEmpty())
         private set
     var language by mutableStateOf(
@@ -49,6 +51,11 @@ class SettingsStore(context: Context) {
     fun updateErrorLimit(value: Boolean) {
         errorLimit = value
         prefs.edit().putBoolean("error_limit", value).apply()
+    }
+
+    fun updatePastelTheme(value: Boolean) {
+        pastelTheme = value
+        prefs.edit().putBoolean("pastel_theme", value).apply()
     }
 
     fun updatePlayerName(value: String) {

@@ -8,6 +8,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -27,6 +28,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -186,6 +188,7 @@ private fun SudokuAppRoot() {
 
     when (screen) {
         AppScreen.HOME -> HomeScreen(
+            pastelTheme = settings.pastelTheme,
             onPlay = { showLevels = true },
             hasResume = hasResumeGame,
             onResume = { restoreResumeGame() },
@@ -638,6 +641,7 @@ private fun UnlockOverlay(
 
 @Composable
 private fun HomeScreen(
+    pastelTheme: Boolean,
     onPlay: () -> Unit,
     hasResume: Boolean,
     onResume: () -> Unit,
@@ -646,10 +650,12 @@ private fun HomeScreen(
     onStatistics: () -> Unit,
     onChallenges: () -> Unit
 ) {
-    Column(
-        Modifier.fillMaxSize().background(Color(0xFFF7F8FC)).verticalScroll(rememberScrollState()).padding(horizontal = 28.dp),
-        horizontalAlignment = Alignment.Start
-    ) {
+    Box(Modifier.fillMaxSize()) {
+        if (pastelTheme) PastelHomeBackdrop() else Box(Modifier.fillMaxSize().background(Color(0xFFF7F8FC)))
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 28.dp),
+            horizontalAlignment = Alignment.Start
+        ) {
         Spacer(Modifier.height(52.dp))
         Text(tr("Sudoku Free"), color = Color(0xFF171A22), fontSize = 43.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold)
         Text(tr("gioca, rilassati, divertiti"), color = AppBlue, fontSize = 19.sp, fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic)
@@ -678,15 +684,37 @@ private fun HomeScreen(
 
         Spacer(Modifier.height(22.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HomeGridCard("▥", "Statistiche", onStatistics, background = Color(0xFFF0ECFF), accent = Color(0xFF7658C9))
-            HomeGridCard("✦", "Sfide", onChallenges, background = Color(0xFFE4F2FF), accent = Color(0xFF2379C9))
+            HomeGridCard("▥", "Statistiche", onStatistics, background = Color(0xFFF0ECFF), accent = Color(0xFF7658C9), translucent = pastelTheme)
+            HomeGridCard("✦", "Sfide", onChallenges, background = Color(0xFFE4F2FF), accent = Color(0xFF2379C9), translucent = pastelTheme)
         }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HomeGridCard("⚙", "Impostazioni", onSettings, background = Color(0xFFFFF0E2), accent = Color(0xFFD77B2D))
-            HomeGridCard("?", "Come si gioca", onTutorial, circledIcon = true, background = Color(0xFFE8F8F1), accent = Color(0xFF268E68))
+            HomeGridCard("⚙", "Impostazioni", onSettings, background = Color(0xFFFFF0E2), accent = Color(0xFFD77B2D), translucent = pastelTheme)
+            HomeGridCard("?", "Come si gioca", onTutorial, circledIcon = true, background = Color(0xFFE8F8F1), accent = Color(0xFF268E68), translucent = pastelTheme)
         }
         Spacer(Modifier.height(28.dp))
+        }
+    }
+}
+
+@Composable
+private fun PastelHomeBackdrop() {
+    Canvas(Modifier.fillMaxSize()) {
+        drawRect(brush = Brush.verticalGradient(listOf(Color(0xFFF8FCFF), Color(0xFFEAF6FF), Color(0xFFF7F3FF))))
+        fun wave(top: Float, height: Float, color: Color, rise: Float) {
+            val path = Path().apply {
+                moveTo(0f, top)
+                cubicTo(size.width * 0.25f, top - rise, size.width * 0.62f, top + rise, size.width, top - rise * 0.25f)
+                lineTo(size.width, top + height)
+                cubicTo(size.width * 0.72f, top + height + rise, size.width * 0.28f, top + height - rise, 0f, top + height)
+                close()
+            }
+            drawPath(path, color)
+        }
+        wave(size.height * 0.08f, size.height * 0.18f, Color(0x553A9CE8), size.height * 0.055f)
+        wave(size.height * 0.29f, size.height * 0.17f, Color(0x444EDDC2), size.height * 0.045f)
+        wave(size.height * 0.52f, size.height * 0.20f, Color(0x446E5BE7), size.height * 0.055f)
+        wave(size.height * 0.75f, size.height * 0.16f, Color(0x44F1A66A), size.height * 0.04f)
     }
 }
 
@@ -697,11 +725,12 @@ private fun RowScope.HomeGridCard(
     onClick: () -> Unit,
     circledIcon: Boolean = false,
     background: Color = Color.White,
-    accent: Color = AppBlue
+    accent: Color = AppBlue,
+    translucent: Boolean = false
 ) {
     Column(
         modifier = Modifier.weight(1f).height(124.dp)
-            .background(background, RoundedCornerShape(18.dp))
+            .background(if (translucent) background.copy(alpha = 0.76f) else background, RoundedCornerShape(18.dp))
             .border(1.dp, accent.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
             .clickable { onClick() }.padding(12.dp),
         verticalArrangement = Arrangement.Center,
@@ -1435,6 +1464,24 @@ private fun SettingsScreen(settings: SettingsStore, onBack: () -> Unit) {
             SettingToggle("Animazioni", settings.animations, settings::updateAnimations)
             SettingToggle("Suggerimenti intelligenti", settings.smartHints, settings::updateSmartHints)
             SettingToggle("Limite di 3 errori", settings.errorLimit, settings::updateErrorLimit)
+            Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).padding(16.dp)) {
+                Text(tr("Tema schermata iniziale"), color = Color(0xFF202A38), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ThemeChoice(
+                        title = "Classico",
+                        selected = !settings.pastelTheme,
+                        colors = listOf(Color(0xFFF7F8FC), Color(0xFFE4F2FF)),
+                        modifier = Modifier.weight(1f)
+                    ) { settings.updatePastelTheme(false) }
+                    ThemeChoice(
+                        title = "Onde pastello",
+                        selected = settings.pastelTheme,
+                        colors = listOf(Color(0xFFDCEFFF), Color(0xFFE9DFFF), Color(0xFFDDF8EC)),
+                        modifier = Modifier.weight(1f)
+                    ) { settings.updatePastelTheme(true) }
+                }
+            }
             Surface(
                 modifier = Modifier.fillMaxWidth().clickable { showLanguages = true },
                 shape = RoundedCornerShape(18.dp),
@@ -1495,6 +1542,33 @@ private fun SettingsScreen(settings: SettingsStore, onBack: () -> Unit) {
             },
             confirmButton = {}
         )
+    }
+}
+
+@Composable
+private fun ThemeChoice(
+    title: String,
+    selected: Boolean,
+    colors: List<Color>,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier.clip(RoundedCornerShape(15.dp))
+            .background(Brush.horizontalGradient(colors))
+            .border(if (selected) 2.dp else 1.dp, if (selected) AppBlue else Color(0xFFCAD3DF), RoundedCornerShape(15.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 10.dp, vertical = 13.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            Modifier.size(21.dp).border(2.dp, if (selected) AppBlue else AppText, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            if (selected) Box(Modifier.size(11.dp).background(AppBlue, CircleShape))
+        }
+        Spacer(Modifier.height(7.dp))
+        Text(tr(title), color = if (selected) AppBlue else Color(0xFF344054), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
     }
 }
 
