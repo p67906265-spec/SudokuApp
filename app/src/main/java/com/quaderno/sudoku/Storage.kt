@@ -29,6 +29,8 @@ class SettingsStore(context: Context) {
         private set
     var errorLimit by mutableStateOf(prefs.getBoolean("error_limit", true))
         private set
+    var playerName by mutableStateOf(prefs.getString("player_name", "Giocatore").orEmpty())
+        private set
 
     fun updateAnimations(value: Boolean) {
         animations = value
@@ -43,6 +45,11 @@ class SettingsStore(context: Context) {
     fun updateErrorLimit(value: Boolean) {
         errorLimit = value
         prefs.edit().putBoolean("error_limit", value).apply()
+    }
+
+    fun updatePlayerName(value: String) {
+        playerName = value.trim().take(20).ifBlank { "Giocatore" }
+        prefs.edit().putString("player_name", playerName).apply()
     }
 }
 

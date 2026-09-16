@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "3005980979",
+    "project_id": "sudoku-free-cc86a",
+    "storage_bucket": "sudoku-free-cc86a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:3005980979:android:0ce280c2de395149b99e46",
+        "android_client_info": {
+          "package_name": "com.quaderno.sudoku"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDRtnG8SZnBrZuhc_HFHz35ASks1Il1xtE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -68,6 +68,7 @@ private fun SudokuAppRoot() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val stats = remember { StatsStore(context) }
     val settings = remember { SettingsStore(context) }
+    val onlineLeaderboard = remember { OnlineLeaderboard(context) }
     val resumePrefs = remember { context.getSharedPreferences("resume_game", Context.MODE_PRIVATE) }
     var hasResumeGame by remember { mutableStateOf(resumePrefs.getBoolean("active", false)) }
     var statsVersion by remember { mutableStateOf(0) }
@@ -84,6 +85,7 @@ private fun SudokuAppRoot() {
     var showDailyResultDialog by remember { mutableStateOf(false) }
     var dailyResultSeconds by remember { mutableStateOf(0) }
     var dailyResultScore by remember { mutableStateOf(0) }
+    var dailyLeaderboard by remember { mutableStateOf(DailyLeaderboard()) }
     var newlyUnlockedLevel by remember { mutableStateOf<SudokuEngine.Difficulty?>(null) }
     val game = remember { GameState(SudokuEngine.Difficulty.MEDIO, settings) }
 
@@ -135,6 +137,13 @@ private fun SudokuAppRoot() {
             if (dailyGameDate != null) {
                 dailyResultSeconds = game.seconds
                 dailyResultScore = game.score(true)
+                onlineLeaderboard.submitAndLoad(
+                    date = dailyGameDate!!,
+                    name = settings.playerName,
+                    seconds = game.seconds,
+                    score = game.score(true),
+                    mistakes = game.mistakes
+                ) { dailyLeaderboard = it }
                 delay(3500)
                 showDailyResultDialog = true
             }
@@ -202,12 +211,8 @@ private fun SudokuAppRoot() {
                 completedDailyDate = date
                 completedDailyResult = result
             },
-            onPlay = { code ->
+            onPlay = { selectedDailyDate, code ->
                 dailySelectFirstAvailable = false
-                val selectedDailyDate = LocalDate.now().let { today ->
-                    (1..today.dayOfMonth).map { YearMonth.from(today).atDay(it) }
-                        .firstOrNull { ChallengeCodes.isDailyCode(it, code) }
-                }
                 if (selectedDailyDate != null &&
                     dailyGameDate == selectedDailyDate &&
                     game.gameCode == ChallengeCodes.normalize(code) &&
@@ -377,7 +382,10 @@ private fun SudokuAppRoot() {
                 }
             },
             text = {
-                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("Tempo", color = AppText, fontSize = 15.sp)
@@ -386,6 +394,36 @@ private fun SudokuAppRoot() {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("Punteggio", color = AppText, fontSize = 15.sp)
                             Text("$dailyResultScore", color = AppBlue, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Spacer(Modifier.height(18.dp))
+                    HorizontalDivider(color = Color(0xFFDDE4EE))
+                    Spacer(Modifier.height(14.dp))
+                    Text("Classifica del giorno", color = Color(0xFF263A58), fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                    when {
+                        dailyLeaderboard.loading -> {
+                            Spacer(Modifier.height(12.dp))
+                            CircularProgressIndicator(color = AppBlue, modifier = Modifier.size(30.dp))
+                        }
+                        dailyLeaderboard.error != null -> {
+                            Spacer(Modifier.height(8.dp))
+                            Text(dailyLeaderboard.error!!, color = AppText, textAlign = TextAlign.Center)
+                        }
+                        else -> {
+                            Text(
+                                "${dailyLeaderboard.participants} partecipanti  •  Posizione ${dailyLeaderboard.position ?: "—"}",
+                                color = AppBlue,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            dailyLeaderboard.top.forEachIndexed { index, entry ->
+                                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text("${index + 1}.", color = AppText, modifier = Modifier.width(28.dp), fontWeight = FontWeight.Bold)
+                                    Text(entry.name, color = Color(0xFF263A58), modifier = Modifier.weight(1f), maxLines = 1)
+                                    Text(formatTime(entry.seconds), color = AppBlue, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
                 }
@@ -614,11 +652,12 @@ private fun DailyChallengeScreen(
     selectFirstAvailable: Boolean,
     onBack: () -> Unit,
     onCompleted: (LocalDate, ChallengeResult) -> Unit,
-    onPlay: (String) -> Unit
+    onPlay: (LocalDate, String) -> Unit
 ) {
     statsVersion
     val today = LocalDate.now()
-    val month = YearMonth.from(today)
+    val currentMonth = YearMonth.from(today)
+    var month by remember { mutableStateOf(currentMonth) }
     val monthNames = listOf(
         "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
         "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
@@ -629,10 +668,10 @@ private fun DailyChallengeScreen(
     }.toSet()
     var selectedDate by remember(month, statsVersion, selectFirstAvailable) {
         mutableStateOf(
-            if (today.dayOfMonth !in completedDays) {
+            if (month == currentMonth && today.dayOfMonth !in completedDays) {
                 today
             } else {
-                ((today.dayOfMonth - 1) downTo 1)
+                ((if (month == currentMonth) today.dayOfMonth - 1 else month.lengthOfMonth()) downTo 1)
                     .firstOrNull { it !in completedDays }
                     ?.let(month::atDay)
             }
@@ -661,7 +700,28 @@ private fun DailyChallengeScreen(
 
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("${monthNames[month.monthValue - 1]} ${month.year}", color = Color(0xFF20242D), fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "‹",
+                    color = AppBlue,
+                    fontSize = 38.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { month = month.minusMonths(1) }.padding(horizontal = 5.dp)
+                )
+                Text(
+                    "${monthNames[month.monthValue - 1]} ${month.year}",
+                    color = Color(0xFF20242D),
+                    fontSize = 21.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "›",
+                    color = if (month < currentMonth) AppBlue else Color(0xFFC4C7CE),
+                    fontSize = 38.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .padding(horizontal = 5.dp)
+                        .then(if (month < currentMonth) Modifier.clickable { month = month.plusMonths(1) } else Modifier)
+                )
                 Spacer(Modifier.weight(1f))
                 Text("★", color = Color(0xFFFFB51B), fontSize = 24.sp)
                 Spacer(Modifier.width(6.dp))
@@ -682,8 +742,9 @@ private fun DailyChallengeScreen(
                         Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                             if (day in 1..month.lengthOfMonth()) {
                                 val completed = day in completedDays
-                                val isToday = day == today.dayOfMonth
-                                val isFuture = day > today.dayOfMonth
+                                val date = month.atDay(day)
+                                val isToday = date == today
+                                val isFuture = date > today
                                 val isSelected = selectedDate?.dayOfMonth == day
                                 Box(
                                     Modifier.size(39.dp)
@@ -728,7 +789,7 @@ private fun DailyChallengeScreen(
             }
             Spacer(Modifier.height(18.dp))
             Button(
-                onClick = { selectedDate?.let { onPlay(stats.dailyCode(it)) } },
+                onClick = { selectedDate?.let { onPlay(it, stats.dailyCode(it)) } },
                 enabled = selectedDate != null,
                 modifier = Modifier.fillMaxWidth().height(58.dp),
                 shape = RoundedCornerShape(29.dp),
@@ -1199,12 +1260,28 @@ private fun formatDuration(seconds: Long): String {
 
 @Composable
 private fun SettingsScreen(settings: SettingsStore, onBack: () -> Unit) {
+    var playerName by remember(settings.playerName) { mutableStateOf(settings.playerName) }
     Column(Modifier.fillMaxSize().background(Color(0xFFF0F3F9))) {
         SimplePageHeader("Impostazioni", onBack)
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SettingToggle("Animazioni", settings.animations, settings::updateAnimations)
             SettingToggle("Suggerimenti intelligenti", settings.smartHints, settings::updateSmartHints)
             SettingToggle("Limite di 3 errori", settings.errorLimit, settings::updateErrorLimit)
+            Column(Modifier.fillMaxWidth().background(Color.White, RoundedCornerShape(18.dp)).padding(16.dp)) {
+                Text("Nome in classifica", color = Color(0xFF202A38), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = playerName,
+                    onValueChange = {
+                        playerName = it.take(20)
+                        settings.updatePlayerName(playerName)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    placeholder = { Text("Giocatore") },
+                    supportingText = { Text("Massimo 20 caratteri") }
+                )
+            }
             Text("Le preferenze vengono salvate e applicate subito.", color = AppText, fontSize = 14.sp, modifier = Modifier.padding(10.dp))
             Spacer(Modifier.height(10.dp))
             HorizontalDivider(color = Color(0xFFD5DCE8))
