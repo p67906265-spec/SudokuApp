@@ -87,7 +87,7 @@ fun SudokuScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(appPageColor())
     ) {
         Column(
             modifier = Modifier
@@ -134,7 +134,7 @@ private fun ModernTopBar(game: GameState, onBack: () -> Unit, onSettings: () -> 
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(tr("‹"), color = AppBlue, fontSize = 48.sp, fontWeight = FontWeight.Light, modifier = Modifier.clickable { onBack() })
-        Text("$m:$s", color = Color(0xFF263A58), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Text("$m:$s", color = appContentColor(), fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
             Text(tr("⟳"), color = AppBlue, fontSize = 38.sp, modifier = Modifier.clickable {
                 if (game.lockedChallengeMode) game.reset(game.difficulty, game.gameCode, lockedChallenge = true)
@@ -158,12 +158,13 @@ private fun ModernStats(game: GameState) {
 
 @Composable
 private fun ModernStat(label: String, value: String, clickable: Boolean = false, onClick: () -> Unit = {}) {
+    val statColor = if (LocalAppTheme.current == "dark") Color(0xFFD8E8FF) else AppText
     Column(
         modifier = if (clickable) Modifier.clickable { onClick() }.padding(4.dp) else Modifier.padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(tr(label), color = AppText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-        Text(value, color = AppText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        Text(tr(label), color = statColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(value, color = statColor, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -313,6 +314,7 @@ private fun ModernActions(game: GameState) {
 
 @Composable
 private fun ColorAction(icon: String, label: String, color: Color, active: Boolean = false, onClick: () -> Unit) {
+    val labelColor = if (LocalAppTheme.current == "dark") Color(0xFFE6F0FF) else Color(0xFF4F5968)
     Surface(
         modifier = Modifier.width(82.dp).height(76.dp).clickable { onClick() },
         shape = RoundedCornerShape(18.dp),
@@ -326,7 +328,7 @@ private fun ColorAction(icon: String, label: String, color: Color, active: Boole
         ) {
             Text(icon, color = color, fontSize = 27.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(3.dp))
-            Text(tr(label), color = Color(0xFF4F5968), fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 1)
+            Text(tr(label), color = labelColor, fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 1)
         }
     }
 }

@@ -47,6 +47,17 @@ internal val AppBlueSoft = Color(0xFFE3EDF8)
 internal val GridLine = Color(0xFF3E424B)
 internal val CellLine = Color(0xFFC6CDD6)
 internal val AppText = Color(0xFF727887)
+internal val LocalAppTheme = compositionLocalOf { "classic" }
+
+@Composable
+internal fun appPageColor(): Color = when (LocalAppTheme.current) {
+    "pastel" -> Color(0xFFEAF6FF)
+    "dark" -> Color(0xFF061B3B)
+    else -> Color(0xFFF7F8FC)
+}
+
+@Composable
+internal fun appContentColor(): Color = if (LocalAppTheme.current == "dark") Color(0xFFF2F7FF) else Color(0xFF17243A)
 
 // ---------------------------------------------------------------------------
 // Activity
@@ -186,6 +197,7 @@ private fun SudokuAppRoot() {
         }
     }
 
+    CompositionLocalProvider(LocalAppTheme provides settings.homeTheme) {
     when (screen) {
         AppScreen.HOME -> HomeScreen(
             homeTheme = settings.homeTheme,
@@ -266,6 +278,7 @@ private fun SudokuAppRoot() {
                 }
             }
         )
+    }
     }
 
     if (showIntro) {
@@ -789,6 +802,7 @@ private fun DailyChallengeScreen(
     onPlay: (LocalDate, String) -> Unit
 ) {
     statsVersion
+    val darkTheme = LocalAppTheme.current == "dark"
     val today = LocalDate.now()
     val currentMonth = YearMonth.from(today)
     var month by remember { mutableStateOf(currentMonth) }
@@ -815,7 +829,7 @@ private fun DailyChallengeScreen(
     val calendarCells = firstOffset + month.lengthOfMonth()
     val rows = (calendarCells + 6) / 7
 
-    Column(Modifier.fillMaxSize().background(Color.White)) {
+    Column(Modifier.fillMaxSize().background(appPageColor())) {
         Box(
             Modifier.fillMaxWidth().height(235.dp)
                 .background(Brush.verticalGradient(listOf(Color(0xFF2F83DC), Color(0xFF46B7EB))))
@@ -843,7 +857,7 @@ private fun DailyChallengeScreen(
                 )
                 Text(
                     "${monthNames[month.monthValue - 1]} ${month.year}",
-                    color = Color(0xFF20242D),
+                    color = appContentColor(),
                     fontSize = 21.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -861,7 +875,7 @@ private fun DailyChallengeScreen(
                 Spacer(Modifier.width(10.dp))
                 Text(tr("★"), color = Color(0xFFFFB51B), fontSize = 24.sp)
                 Spacer(Modifier.width(6.dp))
-                Text("${completedDays.size}/${month.lengthOfMonth()}", color = Color(0xFF20242D), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("${completedDays.size}/${month.lengthOfMonth()}", color = appContentColor(), fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(18.dp))
             Row(Modifier.fillMaxWidth()) {
@@ -912,7 +926,7 @@ private fun DailyChallengeScreen(
                                             isSelected -> Color.White
                                             isToday -> Color(0xFF358DE5)
                                             isFuture -> Color(0xFFC4C7CE)
-                                            else -> Color(0xFF747B8A)
+                                            else -> if (darkTheme) Color(0xFFD7E5FA) else Color(0xFF747B8A)
                                         },
                                         fontSize = if (completed) 23.sp else 17.sp,
                                         fontWeight = FontWeight.SemiBold
@@ -1040,7 +1054,7 @@ private fun SimplePageHeader(title: String, onBack: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(tr("‹"), color = AppBlue, fontSize = 48.sp, modifier = Modifier.clickable { onBack() })
         Spacer(Modifier.weight(1f))
-        Text(tr(title), color = Color(0xFF17243A), fontSize = 23.sp, fontWeight = FontWeight.Bold)
+        Text(tr(title), color = appContentColor(), fontSize = 23.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
         Spacer(Modifier.width(28.dp))
     }
@@ -1111,7 +1125,7 @@ private fun ChallengeScreen(
     }
 
     if (!showFriendChallenges) {
-        Column(Modifier.fillMaxSize().background(Color(0xFFF4F6FB))) {
+        Column(Modifier.fillMaxSize().background(appPageColor())) {
             SimplePageHeader("Sfide", onBack)
             Column(
                 Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
@@ -1119,14 +1133,14 @@ private fun ChallengeScreen(
             ) {
                 Text(
                     tr("Scegli la tua sfida"),
-                    color = Color(0xFF25344B),
+                    color = appContentColor(),
                     fontSize = 25.sp,
                     fontFamily = FontFamily.Serif,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     tr("Ogni modalità mette alla prova un'abilità diversa."),
-                    color = AppText,
+                    color = if (LocalAppTheme.current == "dark") Color(0xFFC9D9F0) else AppText,
                     fontSize = 15.sp
                 )
                 ChallengeHubCard(
@@ -1157,7 +1171,7 @@ private fun ChallengeScreen(
     }
 
     BackHandler { showFriendChallenges = false }
-    Column(Modifier.fillMaxSize().background(Color(0xFFF0F3F9))) {
+    Column(Modifier.fillMaxSize().background(appPageColor())) {
         SimplePageHeader("Sfida un amico") { showFriendChallenges = false }
         Column(
             Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
@@ -1346,7 +1360,7 @@ private fun StatisticsScreen(stats: StatsStore, statsVersion: Int, onBack: () ->
     val selected = stats.stats(selectedLevel)
     val average = if (selected.completed == 0) 0 else (selected.totalSeconds / selected.completed).toInt()
 
-    Column(Modifier.fillMaxSize().background(Color(0xFFF0F3F9))) {
+    Column(Modifier.fillMaxSize().background(appPageColor())) {
         SimplePageHeader("Statistiche", onBack)
         Column(
             Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
@@ -1482,7 +1496,7 @@ private fun SettingsScreen(settings: SettingsStore, onBack: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var playerName by remember(settings.playerName) { mutableStateOf(settings.playerName) }
     var showLanguages by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().background(Color(0xFFF0F3F9))) {
+    Column(Modifier.fillMaxSize().background(appPageColor())) {
         SimplePageHeader("Impostazioni", onBack)
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SettingToggle("Animazioni", settings.animations, settings::updateAnimations)
@@ -1630,11 +1644,11 @@ private fun TutorialScreen(onBack: () -> Unit) {
         "Seleziona una casella vuota e tocca un numero per inserirlo.",
         "Attiva Note per aggiungere o rimuovere i possibili numeri nelle caselle."
     )
-    Column(Modifier.fillMaxSize().background(Color.White), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.fillMaxSize().background(appPageColor()), horizontalAlignment = Alignment.CenterHorizontally) {
         SimplePageHeader("Come si gioca", onBack)
         TutorialVisual(page)
         Spacer(Modifier.height(14.dp))
-        Text(tr(bodies[page]), color = Color(0xFF303442), fontSize = 16.sp, textAlign = TextAlign.Center, lineHeight = 22.sp,
+        Text(tr(bodies[page]), color = appContentColor(), fontSize = 16.sp, textAlign = TextAlign.Center, lineHeight = 22.sp,
             modifier = Modifier.padding(horizontal = 28.dp))
         Spacer(Modifier.weight(1f))
         Row(Modifier.fillMaxWidth().padding(horizontal = 26.dp, vertical = 22.dp), verticalAlignment = Alignment.CenterVertically) {
