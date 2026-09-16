@@ -12,6 +12,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -105,9 +107,9 @@ fun SudokuScreen(
             ModernStats(game)
             Spacer(Modifier.height(8.dp))
             Board(game)
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(10.dp))
             ModernActions(game)
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(7.dp))
             NumberPad(game)
         }
 
@@ -299,33 +301,34 @@ internal fun Modifier.thickEdge(right: Boolean, bottom: Boolean): Modifier {
 @Composable
 private fun ModernActions(game: GameState) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-        ColorAction("↶", "Annulla", Color(0xFFFF9F43)) { game.undo() }
-        ColorAction("▱", "Cancella", Color(0xFFFF5576)) { game.erase() }
+        ColorAction("↶", "Annulla", Color(0xFFF29A38)) { game.undo() }
+        ColorAction("⌫", "Cancella", Color(0xFFEF5574)) { game.erase() }
         ColorAction(if (game.notesMode) "✎" else "✎", "Note", Color(0xFF4B94F2), game.notesMode) { game.toggleNotes() }
-        ColorAction("♣", "${tr("Suggerimento")}: ${game.hintsRemaining()}", Color(0xFF42C49A)) { game.hint() }
+        ColorAction("✦", "${tr("Aiuto")} ${game.hintsRemaining()}", Color(0xFF35B98C)) { game.hint() }
     }
 }
 
 @Composable
 private fun ColorAction(icon: String, label: String, color: Color, active: Boolean = false, onClick: () -> Unit) {
-    Column(
-        modifier = Modifier.width(86.dp).clickable { onClick() },
-        horizontalAlignment = Alignment.CenterHorizontally
+    Surface(
+        modifier = Modifier.width(82.dp).height(76.dp).clickable { onClick() },
+        shape = RoundedCornerShape(18.dp),
+        color = if (active) color.copy(alpha = 0.24f) else color.copy(alpha = 0.11f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.42f))
     ) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .background(if (active) color.copy(alpha = 0.82f) else color, CircleShape)
-                .border(3.dp, color.copy(alpha = 0.14f), CircleShape),
-            contentAlignment = Alignment.Center
+        Column(
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 7.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Text(icon, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text(icon, color = color, fontSize = 27.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(3.dp))
+            Text(tr(label), color = Color(0xFF4F5968), fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 1)
         }
-        Spacer(Modifier.height(7.dp))
-        Text(tr(label), color = AppText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun NumberPad(game: GameState) {
     Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
@@ -338,8 +341,13 @@ private fun NumberPad(game: GameState) {
                         if (game.lockedNumber == n) Modifier.background(AppBlueSoft, RoundedCornerShape(12.dp))
                         else Modifier
                     )
-                    .then(if (left > 0) Modifier.clickable { game.selectNumber(n) } else Modifier)
-                    .padding(vertical = 5.dp),
+                    .then(
+                        if (left > 0) Modifier.combinedClickable(
+                            onClick = { game.input(n) },
+                            onLongClick = { game.toggleLockedNumber(n) }
+                        ) else Modifier
+                    )
+                    .padding(top = 3.dp, bottom = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (left > 0) {
@@ -349,7 +357,12 @@ private fun NumberPad(game: GameState) {
                         fontSize = 34.sp,
                         color = AppBlue
                     )
-                    Text("$left", fontWeight = FontWeight.SemiBold, fontSize = 11.sp, color = Color(0xFF9AA3B2))
+                    Text(
+                        if (game.lockedNumber == n) "🔒 $left" else "$left",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = if (game.lockedNumber == n) AppBlue else Color(0xFF657184)
+                    )
                 } else {
                     Text(tr("✓"), fontWeight = FontWeight.Bold, fontSize = 29.sp, color = AppBlue)
                     Text(tr(" "), fontSize = 11.sp)

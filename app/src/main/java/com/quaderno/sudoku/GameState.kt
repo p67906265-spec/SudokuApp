@@ -158,14 +158,9 @@ class GameState(difficulty: SudokuEngine.Difficulty, private val settings: Setti
         if (locked != null && !given[pos] && board[pos] == 0) input(locked)
     }
 
-    fun selectNumber(n: Int) {
+    fun toggleLockedNumber(n: Int) {
         if (won || failed() || placedCount(n) >= 9) return
-        if (lockedNumber == n) {
-            lockedNumber = null
-        } else {
-            lockedNumber = n
-            if (selected >= 0 && !given[selected] && board[selected] == 0) input(n)
-        }
+        lockedNumber = if (lockedNumber == n) null else n
     }
 
     private fun isInSameBox(origin: Int, candidate: Int): Boolean =
