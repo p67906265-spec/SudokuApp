@@ -29,7 +29,9 @@ class SettingsStore(context: Context) {
         private set
     var errorLimit by mutableStateOf(prefs.getBoolean("error_limit", true))
         private set
-    var pastelTheme by mutableStateOf(prefs.getBoolean("pastel_theme", false))
+    var homeTheme by mutableStateOf(
+        prefs.getString("home_theme", null) ?: if (prefs.getBoolean("pastel_theme", false)) "pastel" else "classic"
+    )
         private set
     var playerName by mutableStateOf(prefs.getString("player_name", "Giocatore").orEmpty())
         private set
@@ -53,9 +55,9 @@ class SettingsStore(context: Context) {
         prefs.edit().putBoolean("error_limit", value).apply()
     }
 
-    fun updatePastelTheme(value: Boolean) {
-        pastelTheme = value
-        prefs.edit().putBoolean("pastel_theme", value).apply()
+    fun updateHomeTheme(value: String) {
+        homeTheme = value.takeIf { it in setOf("classic", "pastel", "dark") } ?: "classic"
+        prefs.edit().putString("home_theme", homeTheme).apply()
     }
 
     fun updatePlayerName(value: String) {

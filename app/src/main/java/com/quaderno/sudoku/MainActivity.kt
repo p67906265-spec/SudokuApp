@@ -188,7 +188,7 @@ private fun SudokuAppRoot() {
 
     when (screen) {
         AppScreen.HOME -> HomeScreen(
-            pastelTheme = settings.pastelTheme,
+            homeTheme = settings.homeTheme,
             onPlay = { showLevels = true },
             hasResume = hasResumeGame,
             onResume = { restoreResumeGame() },
@@ -641,7 +641,7 @@ private fun UnlockOverlay(
 
 @Composable
 private fun HomeScreen(
-    pastelTheme: Boolean,
+    homeTheme: String,
     onPlay: () -> Unit,
     hasResume: Boolean,
     onResume: () -> Unit,
@@ -650,17 +650,23 @@ private fun HomeScreen(
     onStatistics: () -> Unit,
     onChallenges: () -> Unit
 ) {
+    val pastelTheme = homeTheme == "pastel"
+    val darkTheme = homeTheme == "dark"
     Box(Modifier.fillMaxSize()) {
-        if (pastelTheme) PastelHomeBackdrop() else Box(Modifier.fillMaxSize().background(Color(0xFFF7F8FC)))
+        when {
+            pastelTheme -> PastelHomeBackdrop()
+            darkTheme -> DarkBlueHomeBackdrop()
+            else -> Box(Modifier.fillMaxSize().background(Color(0xFFF7F8FC)))
+        }
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 28.dp),
             horizontalAlignment = Alignment.Start
         ) {
         Spacer(Modifier.height(52.dp))
-        Text(tr("Sudoku Free"), color = Color(0xFF171A22), fontSize = 43.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold)
-        Text(tr("gioca, rilassati, divertiti"), color = AppBlue, fontSize = 19.sp, fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic)
+        Text(tr("Sudoku Free"), color = if (darkTheme) Color.White else Color(0xFF171A22), fontSize = 43.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold)
+        Text(tr("gioca, rilassati, divertiti"), color = if (darkTheme) Color(0xFF9DD8FF) else AppBlue, fontSize = 19.sp, fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic)
         Spacer(Modifier.height(16.dp))
-        HorizontalDivider(thickness = 2.dp, color = Color(0xFF2B2F38))
+        HorizontalDivider(thickness = 2.dp, color = if (darkTheme) Color.White.copy(alpha = 0.8f) else Color(0xFF2B2F38))
         Spacer(Modifier.height(26.dp))
         Button(
             onClick = onPlay,
@@ -684,13 +690,13 @@ private fun HomeScreen(
 
         Spacer(Modifier.height(22.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HomeGridCard("▥", "Statistiche", onStatistics, background = Color(0xFFF0ECFF), accent = Color(0xFF7658C9), translucent = pastelTheme)
-            HomeGridCard("✦", "Sfide", onChallenges, background = Color(0xFFE4F2FF), accent = Color(0xFF2379C9), translucent = pastelTheme)
+            HomeGridCard("▥", "Statistiche", onStatistics, background = Color(0xFFF0ECFF), accent = if (darkTheme) Color(0xFFC5B5FF) else Color(0xFF7658C9), translucent = pastelTheme, darkGlass = darkTheme)
+            HomeGridCard("✦", "Sfide", onChallenges, background = Color(0xFFE4F2FF), accent = if (darkTheme) Color(0xFF8ED5FF) else Color(0xFF2379C9), translucent = pastelTheme, darkGlass = darkTheme)
         }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            HomeGridCard("⚙", "Impostazioni", onSettings, background = Color(0xFFFFF0E2), accent = Color(0xFFD77B2D), translucent = pastelTheme)
-            HomeGridCard("?", "Come si gioca", onTutorial, circledIcon = true, background = Color(0xFFE8F8F1), accent = Color(0xFF268E68), translucent = pastelTheme)
+            HomeGridCard("⚙", "Impostazioni", onSettings, background = Color(0xFFFFF0E2), accent = if (darkTheme) Color(0xFFFFC47D) else Color(0xFFD77B2D), translucent = pastelTheme, darkGlass = darkTheme)
+            HomeGridCard("?", "Come si gioca", onTutorial, circledIcon = true, background = Color(0xFFE8F8F1), accent = if (darkTheme) Color(0xFF89E6C5) else Color(0xFF268E68), translucent = pastelTheme, darkGlass = darkTheme)
         }
         Spacer(Modifier.height(28.dp))
         }
@@ -719,6 +725,23 @@ private fun PastelHomeBackdrop() {
 }
 
 @Composable
+private fun DarkBlueHomeBackdrop() {
+    Canvas(Modifier.fillMaxSize()) {
+        drawRect(brush = Brush.verticalGradient(listOf(Color(0xFF031B45), Color(0xFF063D82), Color(0xFF02132F))))
+        drawCircle(Color(0x332FA8FF), radius = size.width * 0.72f, center = androidx.compose.ui.geometry.Offset(size.width * 0.90f, size.height * 0.22f))
+        drawCircle(Color(0x224E73FF), radius = size.width * 0.62f, center = androidx.compose.ui.geometry.Offset(size.width * 0.05f, size.height * 0.64f))
+        val step = size.width / 9f
+        for (i in 0..9) {
+            drawLine(Color.White.copy(alpha = 0.035f), androidx.compose.ui.geometry.Offset(i * step, 0f), androidx.compose.ui.geometry.Offset(i * step, size.height), 1.5f)
+        }
+        for (i in 0..18) {
+            val y = i * step
+            drawLine(Color.White.copy(alpha = 0.035f), androidx.compose.ui.geometry.Offset(0f, y), androidx.compose.ui.geometry.Offset(size.width, y), 1.5f)
+        }
+    }
+}
+
+@Composable
 private fun RowScope.HomeGridCard(
     icon: String,
     title: String,
@@ -726,12 +749,13 @@ private fun RowScope.HomeGridCard(
     circledIcon: Boolean = false,
     background: Color = Color.White,
     accent: Color = AppBlue,
-    translucent: Boolean = false
+    translucent: Boolean = false,
+    darkGlass: Boolean = false
 ) {
     Column(
         modifier = Modifier.weight(1f).height(124.dp)
-            .background(if (translucent) background.copy(alpha = 0.76f) else background, RoundedCornerShape(18.dp))
-            .border(1.dp, accent.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+            .background(if (darkGlass) Color(0x99122649) else if (translucent) background.copy(alpha = 0.76f) else background, RoundedCornerShape(18.dp))
+            .border(1.dp, accent.copy(alpha = if (darkGlass) 0.65f else 0.25f), RoundedCornerShape(18.dp))
             .clickable { onClick() }.padding(12.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
@@ -1470,16 +1494,23 @@ private fun SettingsScreen(settings: SettingsStore, onBack: () -> Unit) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ThemeChoice(
                         title = "Classico",
-                        selected = !settings.pastelTheme,
+                        selected = settings.homeTheme == "classic",
                         colors = listOf(Color(0xFFF7F8FC), Color(0xFFE4F2FF)),
                         modifier = Modifier.weight(1f)
-                    ) { settings.updatePastelTheme(false) }
+                    ) { settings.updateHomeTheme("classic") }
                     ThemeChoice(
                         title = "Onde pastello",
-                        selected = settings.pastelTheme,
+                        selected = settings.homeTheme == "pastel",
                         colors = listOf(Color(0xFFDCEFFF), Color(0xFFE9DFFF), Color(0xFFDDF8EC)),
                         modifier = Modifier.weight(1f)
-                    ) { settings.updatePastelTheme(true) }
+                    ) { settings.updateHomeTheme("pastel") }
+                    ThemeChoice(
+                        title = "Blu scuro",
+                        selected = settings.homeTheme == "dark",
+                        colors = listOf(Color(0xFF052454), Color(0xFF1467B8), Color(0xFF061A3B)),
+                        modifier = Modifier.weight(1f),
+                        lightText = true
+                    ) { settings.updateHomeTheme("dark") }
                 }
             }
             Surface(
@@ -1551,6 +1582,7 @@ private fun ThemeChoice(
     selected: Boolean,
     colors: List<Color>,
     modifier: Modifier = Modifier,
+    lightText: Boolean = false,
     onClick: () -> Unit
 ) {
     Column(
@@ -1568,7 +1600,14 @@ private fun ThemeChoice(
             if (selected) Box(Modifier.size(11.dp).background(AppBlue, CircleShape))
         }
         Spacer(Modifier.height(7.dp))
-        Text(tr(title), color = if (selected) AppBlue else Color(0xFF344054), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        Text(
+            tr(title),
+            color = if (lightText) Color.White else if (selected) AppBlue else Color(0xFF344054),
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 2
+        )
     }
 }
 
